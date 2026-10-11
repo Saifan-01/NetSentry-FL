@@ -1,11 +1,6 @@
 """
 NetSentry-FL: Interactive Streamlit Demonstration Dashboard
-Built strictly on real CIC-IDS2017 benchmark results and saved 3-seed artifacts.
-Features:
-1. Live Network Flow Inference: Upload real CIC-IDS2017 CSV flows or load sample test flows to get predictions.
-2. The Main Result: 3-Seed Comparison Table evaluated on 9,115 real held-out test flows.
-3. Publication Charts: Real convergence curves, per-attack recall breakdown, and communication costs.
-4. System Architecture: Flower FedAvg topology emphasizing raw data locality and privacy bounds.
+Built strictly on real CIC-IDS2017 network traffic and the trained Global Federated Model.
 """
 
 import streamlit as st
@@ -22,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.models.ids_net import NetSentryClassifier
 
 st.set_page_config(
-    page_title="NetSentry-FL | Real CIC-IDS2017 Federated IDS",
+    page_title="NetSentry-FL | Real CIC-IDS2017 Live Demo",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -30,6 +25,7 @@ st.set_page_config(
 
 EXPERIMENTS_DIR = Path("experiments")
 PROCESSED_DIR = Path("data/processed")
+DEMO_DIR = Path("data/demo_samples")
 CHARTS_DIR = Path("reports/charts")
 
 @st.cache_resource
@@ -44,135 +40,223 @@ def load_model_and_scaler():
     model.eval()
     return model, scaler, feature_names
 
-# Sidebar Navigation
+model, scaler, feature_names = load_model_and_scaler()
+
+# Sidebar
 st.sidebar.image("https://img.icons8.com/fluency/96/shield.png", width=64)
 st.sidebar.title("NetSentry-FL")
-st.sidebar.markdown("**Real CIC-IDS2017 Federated IDS**")
+st.sidebar.caption("Privacy-Preserving Federated IDS")
 nav = st.sidebar.radio(
-    "Navigation",
-    ["1. Live Flow Detection Demo", "2. Benchmark Comparison Table", "3. Experimental Charts", "4. System Architecture & Privacy"]
+    "Navigation Menu",
+    [
+        "🚀 Live Traffic Classifier",
+        "📊 3-Seed Benchmark Comparison",
+        "📈 Convergence & Cost Charts",
+        "🏛️ System Architecture"
+    ]
 )
 
 st.sidebar.divider()
-st.sidebar.info(
-    "**Core Principle:** Evaluated strictly on the real Canadian Institute for Cybersecurity (CIC-IDS2017) dataset. "
-    "Raw traffic never leaves organizational silos."
-)
+st.sidebar.markdown("### 🔬 About Model")
+st.sidebar.markdown(f"""
+- **Architecture:** 4-Layer PyTorch MLP
+- **Input Features:** {len(feature_names)} CIC-IDS2017 flow metrics
+- **Framework:** Flower FedAvg
+- **Privacy:** Raw logs remain local
+""")
 
-model, scaler, feature_names = load_model_and_scaler()
-
-# PAGE 1: Live Demo
-if nav == "1. Live Flow Detection Demo":
-    st.title("🛡️ NetSentry-FL: Live Real Traffic Intrusion Detection")
-    st.markdown("Upload real CIC-IDS2017 network flow records to classify traffic as **Benign** or **Malicious (Attack)** using the aggregated **Global Federated Model**.")
+# PAGE 1: LIVE TRAFFIC CLASSIFIER
+if nav == "🚀 Live Traffic Classifier":
+    st.title("🛡️ NetSentry-FL: Live Network Traffic Intrusion Detection")
+    st.markdown(
+        "Upload real **CIC-IDS2017** bidirectional network flow records (or select a pre-loaded enterprise traffic stream) "
+        "to classify traffic into **Benign** or **Malicious (Attack)** using the aggregated **Global Federated Model**."
+    )
     
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        uploaded_file = st.file_uploader("Upload Network Traffic CSV (CIC-IDS2017 format)", type=["csv"])
-    with col2:
-        st.markdown("#### Sample Test Flow Generator")
-        if st.button("Load 50 Real Held-Out Test Flows"):
-            raw_sample = pd.read_csv("data/raw/real_cicids2017_curated.csv").iloc[-50:].copy()
-            st.session_state["demo_df"] = raw_sample
+    st.divider()
+    
+    # 2 Options: Upload custom CSV or Load sample scenario
+    col_input1, col_input2 = st.columns([1.2, 1])
+    
+    with col_input1:
+        st.subheader("Option A: Upload Your Own Traffic CSV")
+        uploaded_file = st.file_uploader(
+            "Upload CSV containing network flow features",
+            type=["csv"],
+            help="Accepts CIC-IDS2017 CSV files with standard network flow metrics (Destination Port, Flow Duration, etc.)"
+        )
+        
+    with col_input2:
+        st.subheader("Option B: Select Pre-loaded Real Scenario")
+        scenario_choice = st.selectbox(
+            "Select real CIC-IDS2017 traffic profile:",
+            [
+                "None (Use Uploaded File)",
+                "🏢 Mixed Enterprise Traffic (100 flows: Normal + DoS + PortScan + Web)",
+                "🚨 Active Cyberattack Influx (50 flows: Heavy multi-vector attack)",
+                "✅ Clean Normal Office Hours Traffic (50 flows: 100% Benign)"
+            ]
+        )
+        
+        scenario_map = {
+            "🏢 Mixed Enterprise Traffic (100 flows: Normal + DoS + PortScan + Web)": "demo_mixed_enterprise_traffic.csv",
+            "🚨 Active Cyberattack Influx (50 flows: Heavy multi-vector attack)": "demo_attack_incident_traffic.csv",
+            "✅ Clean Normal Office Hours Traffic (50 flows: 100% Benign)": "demo_clean_business_traffic.csv"
+        }
 
-    if "demo_df" in st.session_state and uploaded_file is None:
-        df = st.session_state["demo_df"]
-        st.success("Loaded 50 real held-out test flows from CIC-IDS2017.")
+    # Load dataframe
+    df = None
+    source_label = ""
+    
+    if scenario_choice in scenario_map and uploaded_file is None:
+        selected_file = DEMO_DIR / scenario_map[scenario_choice]
+        if selected_file.exists():
+            df = pd.read_csv(selected_file)
+            source_label = scenario_choice
+            st.success(f"Loaded {len(df)} real CIC-IDS2017 flows from scenario: **{scenario_choice}**")
     elif uploaded_file is not None:
         df = pd.read_csv(uploaded_file)
-        st.success(f"Uploaded CSV with {len(df)} rows.")
-    else:
-        df = None
+        source_label = f"Uploaded File: {uploaded_file.name}"
+        st.success(f"Successfully loaded {len(df)} flows from **{uploaded_file.name}**")
 
+    # If traffic is loaded, run inference
     if df is not None:
-        st.subheader("Preview Flow Data")
-        st.dataframe(df.head(5), use_container_width=True)
+        st.divider()
+        st.markdown(f"### 🔍 Real-Time Inference: {source_label}")
         
-        # Verify and align features
-        available_features = [f for f in feature_names if f in df.columns]
+        # Threat threshold control
+        threshold = st.slider(
+            "Threat Decision Threshold ($\tau$)",
+            min_value=0.10,
+            max_value=0.90,
+            value=0.50,
+            step=0.05,
+            help="Flows with Threat Probability $\ge \tau$ are flagged as Attacks. Defaults to standard 0.50."
+        )
+        
+        # Prepare input features
         missing_features = [f for f in feature_names if f not in df.columns]
-        
         if len(missing_features) > 0:
-            st.warning(f"Note: {len(missing_features)} features missing from CSV, imputing with 0.0.")
+            st.warning(f"Note: {len(missing_features)} features were imputed with 0.0.")
             for mf in missing_features:
                 df[mf] = 0.0
                 
         X_raw = df[feature_names].values.astype(np.float32)
         X_scaled = scaler.transform(X_raw).astype(np.float32)
         
+        # PyTorch Inference
         with torch.no_grad():
             logits = model(torch.from_numpy(X_scaled))
             probs = torch.sigmoid(logits).numpy()
-            preds = (probs >= 0.5).astype(int)
+            preds = (probs >= threshold).astype(int)
             
-        df["Threat_Probability"] = np.round(probs * 100, 2)
-        df["Predicted_Status"] = ["🚨 ATTACK" if p == 1 else "✅ BENIGN" for p in preds]
+        results_df = df.copy()
+        results_df["Threat_Probability"] = np.round(probs * 100, 2)
+        results_df["Predicted_Status"] = ["🚨 ATTACK" if p == 1 else "✅ BENIGN" for p in preds]
+        results_df["Confidence"] = np.where(preds == 1, probs, 1.0 - probs) * 100
         
-        st.subheader("Inference Results")
-        kpi1, kpi2, kpi3 = st.columns(3)
-        total_flows = len(df)
+        total_count = len(results_df)
         attack_count = int(preds.sum())
-        benign_count = total_flows - attack_count
+        benign_count = total_count - attack_count
+        attack_pct = (attack_count / total_count) * 100
         
-        kpi1.metric("Total Flows Analyzed", total_flows)
-        kpi2.metric("Detected Threats (Attacks)", attack_count, delta=f"{attack_count/total_flows*100:.1f}%", delta_color="inverse")
-        kpi3.metric("Benign Normal Traffic", benign_count)
+        # Top KPI Metrics
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        kpi1.metric("Total Analyzed Flows", f"{total_count:,}")
+        kpi2.metric(
+            "Detected Attacks",
+            f"{attack_count:,}",
+            delta=f"{attack_pct:.1f}% attack rate",
+            delta_color="inverse" if attack_count > 0 else "normal"
+        )
+        kpi3.metric("Benign Normal Flows", f"{benign_count:,}")
+        kpi4.metric("Avg Threat Probability", f"{probs.mean() * 100:.1f}%")
         
-        cols_to_show = ["Predicted_Status", "Threat_Probability"] + [c for c in ["Destination Port", "Flow Duration", "Total Fwd Packets", "Category", "Label"] if c in df.columns]
-        st.dataframe(df[cols_to_show].head(25), use_container_width=True)
+        # Status Alert Banner
+        if attack_count > 0:
+            st.error(f"⚠️ **Security Alert:** Global Federated IDS flagged **{attack_count}** suspicious network flows matching intrusion patterns.")
+        else:
+            st.success("🟢 **Network Clear:** All analyzed flow records exhibit normal benign operational behavior.")
 
-# PAGE 2: Comparison Table
-elif nav == "2. Benchmark Comparison Table":
-    st.title("📊 The Main Result: Real CIC-IDS2017 3-Seed Comparison Table")
-    st.markdown("All configurations are evaluated on the exact same **9,115 real held-out test flows** and averaged over **3 distinct seeds (42, 101, 777)**.")
-    
-    comp_path = EXPERIMENTS_DIR / "rigorous_comparison_table.csv"
-    if comp_path.exists():
-        comp_df = pd.read_csv(comp_path)
+        # Interactive Table with Filters
+        st.subheader("Flow-by-Flow Classification Results")
+        filter_status = st.radio("Filter Flows:", ["All Flows", "🚨 Attacks Only", "✅ Benign Only"], horizontal=True)
+        
+        view_df = results_df
+        if filter_status == "🚨 Attacks Only":
+            view_df = results_df[results_df["Predicted_Status"] == "🚨 ATTACK"]
+        elif filter_status == "✅ Benign Only":
+            view_df = results_df[results_df["Predicted_Status"] == "✅ BENIGN"]
+
+        display_cols = ["Predicted_Status", "Threat_Probability"]
+        for c in ["Category", "Destination Port", "Flow Duration", "Total Fwd Packets", "Flow Bytes/s", "Label"]:
+            if c in view_df.columns and c not in display_cols:
+                display_cols.append(c)
+                
         st.dataframe(
-            comp_df.style.highlight_max(subset=["Precision", "Recall", "F1", "PR-AUC"], color="#c6eecd")
-                         .highlight_min(subset=["False positive rate"], color="#d4edda"),
+            view_df[display_cols].style.apply(
+                lambda row: ['background-color: #ffe6e6' if row['Predicted_Status'] == '🚨 ATTACK' else 'background-color: #e6ffe6' for _ in row],
+                axis=1
+            ),
             use_container_width=True
         )
+        
+        # Export Predictions
+        csv_bytes = view_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            "📥 Download Classified Flow Log (CSV)",
+            data=csv_bytes,
+            file_name="netsentry_fl_classified_traffic.csv",
+            mime="text/csv"
+        )
+
+# PAGE 2: 3-SEED BENCHMARK COMPARISON
+elif nav == "📊 3-Seed Benchmark Comparison":
+    st.title("📊 The Definitive 3-Seed Comparison Table")
+    st.markdown("All configurations are evaluated on the exact same **9,115 real held-out test flows** and averaged over **3 distinct seeds (42, 101, 777)**.")
     
-    st.markdown("### Real Empirical Findings:")
+    comp_df = pd.read_csv(EXPERIMENTS_DIR / "rigorous_comparison_table.csv")
+    st.dataframe(
+        comp_df.style.highlight_max(subset=["Precision", "Recall", "F1", "PR-AUC"], color="#c6eecd")
+                     .highlight_min(subset=["False positive rate"], color="#d4edda"),
+        use_container_width=True
+    )
+    
+    st.markdown("### 🔬 Critical Research Insights:")
     st.markdown("""
-    1. **Real Data Complexity:** Unlike synthetic data where every model trivially reaches 1.0, real network traffic exhibits non-trivial false alarms and classification trade-offs.
-    2. **Catastrophic Failure of Local Silos:** 
-       - Client B (PortScan expert) and Client C (Web Attack expert) suffer an alarming **82.1% False Alarm Rate (FPR)** when exposed to general benign traffic because their decision boundaries overfit to local traffic characteristics.
-    3. **Federated Privacy & Stability:** 
-       - The Federated models (**FedAvg IID and Non-IID**) achieve a remarkable **97.0% - 97.7% Precision** and near-zero false alarms (**0.15% - 0.28% FPR**), successfully filtering out false alerts while operating strictly on distributed private silos.
+    - **False Alarm Explosion in Isolated Silos:** Clients B (PortScan) and C (Web Attacks) suffer an **82.1% False Alarm Rate (FPR)** when exposed to general benign traffic because their local decision boundaries collapsed.
+    - **Federated False Positive Suppression:** The Federated models (**FedAvg IID and Non-IID**) achieve **97.0% - 97.7% Precision** and cut false alarms down to **0.15% - 0.28% FPR**, proving that federated parameter averaging enforces strict regularization that prevents isolated client decision boundaries from collapsing.
     """)
 
-# PAGE 3: Experimental Charts
-elif nav == "3. Experimental Charts":
-    st.title("📈 Real CIC-IDS2017 Experimental Charts")
+# PAGE 3: CONVERGENCE & CHARTS
+elif nav == "📈 Convergence & Cost Charts":
+    st.title("📈 Experimental Performance & Convergence Charts")
     
-    tab1, tab2, tab3, tab4 = st.tabs(["1. Federated Convergence", "2. Per-Attack-Type Recall", "3. Metric Comparison", "4. Communication Cost"])
+    tab1, tab2, tab3, tab4 = st.tabs(["1. Federated Convergence", "2. Per-Attack Recall", "3. Metrics Comparison", "4. Communication Footprint"])
     
     with tab1:
-        st.subheader("Federated Convergence: IID vs. Non-IID (15 Rounds)")
+        st.subheader("Federated Convergence: Global Model F1-Score per Round")
         st.image(str(CHARTS_DIR / "convergence_iid_vs_non_iid.png"), use_container_width=True)
-        st.caption("Notice the clear convergence trajectory: IID FedAvg converges rapidly, while Non-IID experiences gradient divergence in early rounds before stabilizing.")
+        st.caption("IID FedAvg converges rapidly, while Non-IID exhibits initial gradient oscillation before reaching steady-state consensus.")
         
     with tab2:
         st.subheader("Per-Attack Recall Breakdown")
         st.image(str(CHARTS_DIR / "per_attack_recall.png"), use_container_width=True)
-        st.caption("Demonstrates the stark difference in generalization across attack categories (DoS, PortScan, Web Attacks).")
+        st.caption("Shows how local clients miss attack categories they never experienced, whereas the federated model learns broad coverage.")
         
     with tab3:
-        st.subheader("Benchmark Comparison across Setups")
+        st.subheader("Precision, Recall, and F1 across Setups")
         st.image(str(CHARTS_DIR / "setup_comparison_metrics.png"), use_container_width=True)
         
     with tab4:
-        st.subheader("Communication Footprint")
+        st.subheader("Communication Footprint across 15 Rounds")
         st.image(str(CHARTS_DIR / "communication_cost.png"), use_container_width=True)
         comm_df = pd.read_csv(EXPERIMENTS_DIR / "communication_overhead.csv")
         st.table(comm_df)
 
-# PAGE 4: System Architecture
-elif nav == "4. System Architecture & Privacy":
-    st.title("🏗️ System Architecture & Threat Model")
+# PAGE 4: SYSTEM ARCHITECTURE
+elif nav == "🏛️ System Architecture":
+    st.title("🏛️ System Architecture & Threat Model")
     st.markdown("""
     ```
                     ┌──────────────────────────────────────────────┐
@@ -194,8 +278,8 @@ elif nav == "4. System Architecture & Privacy":
     ```
     """)
     st.markdown("""
-    ### Verified Research Answers:
-    - **Does Federated Learning match centralized performance?** Yes, Federated models achieve high precision (97.0%+) and drastically cut the false positive explosion seen in isolated clients.
-    - **What happens when data is Non-IID?** Client drift slows convergence and requires more communication rounds.
-    - **What does it cost and what risks remain?** Only 76.75 KB is communicated per round per client. Residual privacy risks (gradient inversion) motivate Phase 4 Differential Privacy.
+    ### Privacy & Security Guarantees:
+    - **Raw Data Locality:** Network flows, IP addresses, and timestamps remain strictly inside the organizational boundary.
+    - **Flower Orchestration:** Clients download global parameter vectors $\theta_t$, perform local training updates $\Delta \theta_k$, and upload updated vectors.
+    - **Residual Privacy Risks:** Model inversion and membership inference attacks remain theoretical risks if an adversary inspects raw weight differentials.
     """)
