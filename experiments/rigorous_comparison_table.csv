@@ -1,0 +1,7 @@
+Setup,Precision,Recall,F1,PR-AUC,False positive rate
+Centralized (MLP),1.0,0.9639,0.9809,1.0,0.0
+Local-only (Client A),1.0,0.3865,0.5575,1.0,0.0
+Local-only (Client B),1.0,0.701,0.8131,1.0,0.0
+Local-only (Client C),1.0,0.2979,0.4435,0.945,0.0
+"Federated, IID",1.0,0.6031,0.7175,1.0,0.0
+"Federated, non-IID",1.0,0.7373,0.8289,1.0,0.0
