@@ -193,12 +193,25 @@ if nav == "🚀 Live Traffic Classifier":
             if c in view_df.columns and c not in display_cols:
                 display_cols.append(c)
                 
+        # Show styled dataframe with high-contrast text and progress bar for probability
         st.dataframe(
-            view_df[display_cols].style.apply(
-                lambda row: ['background-color: #ffe6e6' if row['Predicted_Status'] == '🚨 ATTACK' else 'background-color: #e6ffe6' for _ in row],
-                axis=1
-            ),
-            use_container_width=True
+            view_df[display_cols],
+            column_config={
+                "Predicted_Status": st.column_config.TextColumn("Status", width="medium"),
+                "Threat_Probability": st.column_config.ProgressColumn(
+                    "Threat Probability (%)",
+                    format="%.2f%%",
+                    min_value=0,
+                    max_value=100
+                ),
+                "Destination Port": st.column_config.NumberColumn("Port", format="%d"),
+                "Flow Duration": st.column_config.NumberColumn("Duration (µs)", format="%d"),
+                "Total Fwd Packets": st.column_config.NumberColumn("Fwd Packets", format="%d"),
+                "Flow Bytes/s": st.column_config.NumberColumn("Bytes/s", format="%.2f"),
+                "Category": st.column_config.TextColumn("Ground Truth Category")
+            },
+            use_container_width=True,
+            hide_index=True
         )
         
         # Export Predictions
