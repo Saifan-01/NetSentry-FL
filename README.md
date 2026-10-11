@@ -4,8 +4,9 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0%2B-ee4c2c.svg)](https://pytorch.org/)
 [![Flower](https://img.shields.io/badge/Flower-Federated%20Learning-ff4b4b.svg)](https://flower.ai/)
 [![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-ff4b4b.svg)](https://streamlit.io/)
+[![Dataset](https://img.shields.io/badge/Dataset-Real%20CIC--IDS2017-green.svg)](https://www.unb.ca/cic/datasets/ids-2017.html)
 
-NetSentry-FL is an end-to-end Federated Learning framework for Network Intrusion Detection Systems (NIDS) evaluated on the **CIC-IDS2017** benchmark. It allows multiple simulated organizations (Clients A, B, and C) to collaborate and train a joint deep neural network using **Flower FedAvg** without exchanging raw network flow records.
+NetSentry-FL is an end-to-end Federated Learning framework for Network Intrusion Detection Systems (NIDS) evaluated on the real **Canadian Institute for Cybersecurity (CIC-IDS2017)** benchmark dataset. It allows multiple simulated organizations (Clients A, B, and C) to collaborate and train a joint deep neural network using **Flower FedAvg** without exchanging raw network flow records.
 
 ---
 
@@ -18,11 +19,11 @@ NetSentry-FL is an end-to-end Federated Learning framework for Network Intrusion
                     └───────┬──────────────┬──────────────┬────────┘
                             │              │              │
              Global Weights │              │              │ Global Weights
-                   (73.7 KB)│              │              │ (73.7 KB)
+                   (76.8 KB)│              │              │ (76.8 KB)
                             ▼              ▼              ▼
                      ┌──────────────┐┌──────────────┐┌──────────────┐
                      │   Client A   ││   Client B   ││   Client C   │
-                     │  (Bank Silo) ││(Health Silo) ││ (Cloud Silo) │
+                     │  (DoS Silo)  ││ (PortScan)   ││(Web Attacks) │
                      └──────┬───────┘└──────┬───────┘└──────┬───────┘
                             │               │               │
                      Local SGD (2 ep)Local SGD (2 ep)Local SGD (2 ep)
@@ -32,18 +33,18 @@ NetSentry-FL is an end-to-end Federated Learning framework for Network Intrusion
 
 ---
 
-## 📊 The Main Result: 3-Seed Comparison Table
+## 📊 The Main Result: Real CIC-IDS2017 3-Seed Comparison Table
 
-All experiments are evaluated on the exact same **8,000 held-out test flows** and averaged over **3 distinct seeds (42, 101, 777)**:
+All experiments are evaluated on the exact same **9,115 real held-out test flows** and averaged over **3 distinct seeds (42, 101, 777)**:
 
-| Setup | Precision | Recall | F1-Score | PR-AUC | False Positive Rate |
+| Setup | Precision | Recall | F1 | PR-AUC | False Positive Rate |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Centralized (MLP)** | **1.0000** | **0.9639** | **0.9809** | **1.0000** | **0.0000** |
-| **Local-only (Client A - PortScan)** | 1.0000 | 0.3865 | 0.5575 | 1.0000 | 0.0000 |
-| **Local-only (Client B - DoS Hulk)** | 1.0000 | 0.7010 | 0.8131 | 1.0000 | 0.0000 |
-| **Local-only (Client C - DDoS & FTP)**| 1.0000 | 0.2979 | 0.4435 | 0.9450 | 0.0000 |
-| **Federated (IID - FedAvg)** | 1.0000 | 0.6031 | 0.7175 | 1.0000 | 0.0000 |
-| **Federated (Non-IID - FedAvg)** | **1.0000** | **0.7373** | **0.8289** | **1.0000** | **0.0000** |
+| **Centralized (MLP)** | 0.9268 | 0.2810 | 0.4311 | 0.6817 | 0.0123 (1.2%) |
+| **Local-only (Client A - DoS)** | 0.9371 | 0.2800 | 0.4312 | 0.5484 | 0.0103 (1.0%) |
+| **Local-only (Client B - PortScan)** | 0.3177 | 0.7059 | 0.4381 | 0.5835 | **0.8215 (82.1%)** |
+| **Local-only (Client C - Web Attack)**| 0.3176 | 0.7059 | 0.4381 | 0.4523 | **0.8217 (82.2%)** |
+| **Federated, IID** | **0.9770** | 0.2190 | 0.3560 | 0.6831 | **0.0028 (0.28%)** |
+| **Federated, non-IID** | **0.9704** | 0.1143 | 0.1956 | **0.6977** | **0.0015 (0.15%)** |
 
 ---
 
@@ -56,10 +57,9 @@ cd NetSentry-FL
 pip install -r requirements.txt
 ```
 
-### 2. Dataset Preparation (Pre-processing & Scaling)
+### 2. Dataset Preparation (Deduplication & Preprocessing)
 ```bash
-python src/data/generate_subtle_attacks.py
-python src/data/make_dataset.py
+python src/data/curate_real_cicids2017.py
 ```
 
 ### 3. Run Centralized Baselines
@@ -70,7 +70,7 @@ python src/models/train_centralized_pytorch.py
 
 ### 4. Run the 3-Seed Federated Experiments & Generate Visualizations
 ```bash
-python src/models/evaluate_3seeds.py
+python src/models/evaluate_real_cicids.py
 python src/utils/generate_charts.py
 ```
 
@@ -88,7 +88,7 @@ NetSentry-FL/
 │   └── app.py                      # Interactive Streamlit Demo & Evaluation Dashboard
 ├── configs/                        # Hyperparameter configurations
 ├── data/
-│   ├── raw/                        # Raw / benchmark CIC-IDS2017 flow data
+│   ├── raw/                        # Real CIC-IDS2017 flow data parquets & curated CSV
 │   └── processed/                  # Normalized, leak-free splits
 ├── docs/                           # Theoretical notes & Phase 1 documentation
 ├── experiments/                    # Saved evaluation CSVs and model checkpoints
@@ -97,7 +97,7 @@ NetSentry-FL/
 │   ├── research_report.md          # 10-15 page formal technical report
 │   └── presentation_slides.md      # 10-slide viva/presentation defense
 ├── src/
-│   ├── data/                       # Ingestion, cleaning, and preprocessing
+│   ├── data/                       # Ingestion, cleaning, deduplication, and preprocessing
 │   ├── models/                     # PyTorch NetSentryClassifier & 3-seed evaluator
 │   ├── federated/                  # Flower NumPyClient and FedAvg simulation runner
 │   └── utils/                      # Publication chart generator

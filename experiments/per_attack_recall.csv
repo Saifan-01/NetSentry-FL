@@ -1,25 +1,19 @@
 Attack,Model,Recall,Total_Flows
-PortScan,Centralized,1.0,742
-PortScan,Local Client A (PortScan),1.0,742
-PortScan,Local Client B (DoS),1.0,742
-PortScan,Local Client C (DDoS),1.0,742
-PortScan,Federated IID,1.0,742
-PortScan,Federated Non-IID,1.0,742
-DoS Hulk,Centralized,1.0,674
-DoS Hulk,Local Client A (PortScan),0.0,674
-DoS Hulk,Local Client B (DoS),0.9955489614243324,674
-DoS Hulk,Local Client C (DDoS),0.0,674
-DoS Hulk,Federated IID,0.0,674
-DoS Hulk,Federated Non-IID,0.0,674
-DDoS,Centralized,1.0,296
-DDoS,Local Client A (PortScan),0.0,296
-DDoS,Local Client B (DoS),0.6993243243243243,296
-DDoS,Local Client C (DDoS),0.0,296
-DDoS,Federated IID,0.11486486486486487,296
-DDoS,Federated Non-IID,0.2939189189189189,296
-FTP-Patator,Centralized,1.0,208
-FTP-Patator,Local Client A (PortScan),0.0,208
-FTP-Patator,Local Client B (DoS),0.0,208
-FTP-Patator,Local Client C (DDoS),0.0,208
-FTP-Patator,Federated IID,0.0,208
-FTP-Patator,Federated Non-IID,0.0,208
+DoS,Centralized (MLP),0.7436,1217
+DoS,Local Client A (DoS),0.7297,1217
+DoS,Local Client B (PortScan),0.2284,1217
+DoS,Local Client C (Web Attack),0.2301,1217
+DoS,Federated (IID),0.705,1217
+DoS,Federated (Non-IID),0.4643,1217
+PortScan,Centralized (MLP),0.0,1450
+PortScan,Local Client A (DoS),0.0,1450
+PortScan,Local Client B (PortScan),0.9966,1450
+PortScan,Local Client C (Web Attack),0.9966,1450
+PortScan,Federated (IID),0.0,1450
+PortScan,Federated (Non-IID),0.0,1450
+Web Attack,Centralized (MLP),0.0,536
+Web Attack,Local Client A (DoS),0.0,536
+Web Attack,Local Client B (PortScan),1.0,536
+Web Attack,Local Client C (Web Attack),1.0,536
+Web Attack,Federated (IID),0.0,536
+Web Attack,Federated (Non-IID),0.0,536
