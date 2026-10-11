@@ -1,0 +1,7 @@
+model,accuracy,precision,recall,f1,roc_auc,round
+Centralized Deep Learning (Upper Bound),1.0,1.0,1.0,1.0,1.0,
+Federated Learning (IID - FedAvg),1.0,1.0,1.0,1.0,1.0,5.0
+Federated Learning (Non-IID - FedAvg),1.0,1.0,1.0,1.0,1.0,5.0
+Local-Only (Client 0),1.0,1.0,1.0,1.0,0.9999999999999999,
+Local-Only (Client 1),1.0,1.0,1.0,1.0,1.0,
+Local-Only (Client 2),1.0,1.0,1.0,1.0,0.9999999999999999,

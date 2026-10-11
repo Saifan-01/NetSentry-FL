@@ -1,0 +1,3 @@
+model,accuracy,precision,recall,f1,roc_auc,pr_auc,fpr,confusion_matrix
+Logistic Regression,1.0,1.0,1.0,1.0,1.0,1.0,0.0,"[[6000, 0], [0, 2000]]"
+Random Forest,1.0,1.0,1.0,1.0,1.0,1.0,0.0,"[[6000, 0], [0, 2000]]"
