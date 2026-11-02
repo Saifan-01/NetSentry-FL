@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  flower-server:
+    build: .
+    container_name: netsentry-server
+    command: python src/federated/run_federated_experiment.py
+    ports:
+      - "8080:8080"
+    environment:
+      - PYTHONUNBUFFERED=1
+    networks:
+      - netsentry-net
+
+  dashboard:
+    build: .
+    container_name: netsentry-dashboard
+    command: streamlit run app/app.py --server.port=8501 --server.address=0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - flower-server
+    networks:
+      - netsentry-net
+
+networks:
+  netsentry-net:
+    driver: bridge

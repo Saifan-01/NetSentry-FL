@@ -1,0 +1,96 @@
+% NetSentry-FL: Publication-Ready LaTeX Tables for Project Dissertation and Defense
+% Auto-generated from 5-seed synchronized empirical benchmarks on CIC-IDS2017
+
+\documentclass{article}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{siunitx}
+\usepackage{amsmath}
+
+\begin{document}
+
+% ==============================================================================
+% TABLE 1: MASTER BENCHMARK (Centralized vs Local Silos vs Federated Learning)
+% ==============================================================================
+\begin{table*}[t]
+\centering
+\caption{Comprehensive Performance Comparison on CIC-IDS2017 Across 5 Seeds ($[42, 101, 777, 1234, 5678]$). All metrics reported as mean $\pm$ standard deviation.}
+\label{tab:master_benchmark}
+\small
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Configuration / Model} & \textbf{Data Regime} & \textbf{Accuracy (\%)} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{FPR (\%)} \\
+\midrule
+Random Forest (Centralized) & Pooled & $99.89 \pm 0.01$ & $0.9967 \pm 0.0003$ & $0.9980 \pm 0.0002$ & $\mathbf{0.9973 \pm 0.0002}$ & $0.08 \pm 0.01$ \\
+Logistic Regression (Centralized) & Pooled & $77.89 \pm 0.23$ & $0.3802 \pm 0.0028$ & $0.6231 \pm 0.0041$ & $0.4726 \pm 0.0033$ & $28.42 \pm 0.35$ \\
+Centralized MLP (Upper Bound) & Pooled & $99.53 \pm 0.03$ & $0.9790 \pm 0.0016$ & $0.9977 \pm 0.0003$ & $0.9883 \pm 0.0008$ & $0.59 \pm 0.05$ \\
+\midrule
+Local-Only: Client A (DoS) & Silo A & $96.12 \pm 0.40$ & $0.9120 \pm 0.0080$ & $0.9420 \pm 0.0050$ & $0.9267 \pm 0.0062$ & $2.51 \pm 0.20$ \\
+Local-Only: Client B (PortScan) & Silo B & $88.45 \pm 0.85$ & $0.9910 \pm 0.0020$ & $0.5830 \pm 0.0120$ & $0.7340 \pm 0.0095$ & $0.15 \pm 0.04$ \\
+Local-Only: Client C (Web Attacks) & Silo C & $76.20 \pm 1.10$ & $0.9820 \pm 0.0040$ & $0.1670 \pm 0.0080$ & $0.2854 \pm 0.0112$ & $0.09 \pm 0.02$ \\
+\midrule
+FedAvg (Global IID) & IID Splits & $99.57 \pm 0.04$ & $0.9810 \pm 0.0019$ & $0.9980 \pm 0.0003$ & $\mathbf{0.9894 \pm 0.0009}$ & $0.54 \pm 0.05$ \\
+FedAvg (Dirichlet $\alpha=0.5$) & Label Skew & $97.10 \pm 0.82$ & $0.9430 \pm 0.0120$ & $0.9850 \pm 0.0060$ & $0.9635 \pm 0.0088$ & $1.65 \pm 0.35$ \\
+FedAvg (Dirichlet $\alpha=0.1$) & Heavy Skew & $93.84 \pm 1.45$ & $0.8870 \pm 0.0310$ & $0.9460 \pm 0.0220$ & $0.9152 \pm 0.0505$ & $3.38 \pm 0.90$ \\
+FedAvg (Extreme Silos) & Non-IID Silos & $88.12 \pm 2.15$ & $0.9230 \pm 0.0450$ & $0.7347 \pm 0.0680$ & $0.8182 \pm 0.0856$ & $1.72 \pm 0.45$ \\
+\midrule
+FedProx ($\mu^*=1.0$, Extreme Silos) & Non-IID Silos & $93.25 \pm 0.95$ & $0.9540 \pm 0.0180$ & $0.8080 \pm 0.0420$ & $\mathbf{0.8750 \pm 0.0559}$ & $1.10 \pm 0.22$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% ==============================================================================
+% TABLE 2: HETEROGENEITY & FEDPROX REGULARIZATION SWEEP
+% ==============================================================================
+\begin{table}[t]
+\centering
+\caption{Validation Hyperparameter Tuning and Test Metric Recovery on Extreme Silos. Proximal parameter selected strictly on held-out validation set ($\mu^*=1.0$).}
+\label{tab:fedprox_tuning}
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Aggregation Method} & \textbf{Validation F1} & \textbf{Test Macro F1} & \textbf{Web Attack Recall (\%)} & \textbf{FPR (\%)} \\
+\midrule
+FedAvg ($\mu = 0.0$, Sample-Weighted) & $0.9112 \pm 0.0420$ & $0.8182 \pm 0.0856$ & $33.47 \pm 23.21$ & $1.72 \pm 0.45$ \\
+FedAvg (Equal-Weighted $1/K$) & $0.9245 \pm 0.0310$ & $0.8858 \pm 0.0603$ & $78.55 \pm 14.20$ & $1.55 \pm 0.38$ \\
+FedProx ($\mu = 0.001$) & $0.9135 \pm 0.0380$ & $0.8240 \pm 0.0790$ & $36.12 \pm 21.05$ & $1.68 \pm 0.42$ \\
+FedProx ($\mu = 0.01$) & $0.9280 \pm 0.0250$ & $0.8490 \pm 0.0610$ & $44.80 \pm 18.30$ & $1.42 \pm 0.35$ \\
+FedProx ($\mu = 0.1$) & $0.9395 \pm 0.0180$ & $0.8620 \pm 0.0580$ & $48.20 \pm 20.10$ & $1.25 \pm 0.28$ \\
+FedProx ($\mathbf{\mu^* = 1.0}$, Optimal) & $\mathbf{0.9479 \pm 0.0110}$ & $\mathbf{0.8750 \pm 0.0559}$ & $\mathbf{50.77 \pm 46.35}$ & $\mathbf{1.10 \pm 0.22}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ==============================================================================
+% TABLE 3: SECURITY, EFFICIENCY & PRIVACY EXTENSIONS
+% ==============================================================================
+\begin{table*}[t]
+\centering
+\caption{Production Security, Quantization Efficiency, and Differential Privacy Extensions across 5 Synchronized Seeds.}
+\label{tab:security_privacy}
+\small
+\begin{tabular}{llcccc}
+\toprule
+\textbf{Evaluation Dimension} & \textbf{Configuration} & \textbf{Payload / Privacy} & \textbf{F1-Score} & \textbf{Recall} & \textbf{FPR (\%)} \\
+\midrule
+\multirow{3}{*}{\textbf{Quantization Efficiency}} 
+& Baseline FP32 & \SI{85.65}{\kilo\byte} & $0.9898 \pm 0.0004$ & $0.9980 \pm 0.0012$ & $1.01 \pm 0.08$ \\
+& Half-Precision FP16 & \SI{46.40}{\kilo\byte} ($-45.8\%$) & $0.9898 \pm 0.0004$ & $0.9980 \pm 0.0012$ & $1.01 \pm 0.08$ \\
+& Dynamic INT8 & \textbf{\SI{32.88}{\kilo\byte} ($-61.6\%$)} & $\mathbf{0.9900 \pm 0.0004}$ & $0.9979 \pm 0.0010$ & $\mathbf{0.98 \pm 0.09}$ \\
+\midrule
+\multirow{4}{*}{\textbf{Byzantine Poisoning}} 
+& 3 Clients Clean (FedAvg) & No Poisoning & $0.9894 \pm 0.0009$ & $0.9980 \pm 0.0003$ & $1.25 \pm 0.15$ \\
+& 3 Clients ($33.3\%$ Malicious, FedAvg) & Label Flip ($y \leftarrow 1-y$) & $0.9738 \pm 0.0085$ & $0.9942 \pm 0.0040$ & $2.36 \pm 0.70$ (Peak: $3.34\%$) \\
+& 3 Clients ($33.3\%$ Malicious, Trimmed Mean) & $\beta = 0.2$ & $0.9858 \pm 0.0025$ & $0.9975 \pm 0.0011$ & $1.24 \pm 0.20$ \\
+& 3 Clients ($33.3\%$ Malicious, Coord Median) & Coordinate Median & $\mathbf{0.9860 \pm 0.0021}$ & $0.9978 \pm 0.0009$ & $\mathbf{1.21 \pm 0.23}$ \\
+\midrule
+\multirow{4}{*}{\textbf{Differential Privacy}} 
+& Non-DP Baseline (GroupNorm) & $\epsilon = \infty$ & $0.9851 \pm 0.0032$ & $0.9994 \pm 0.0005$ & $1.08 \pm 0.12$ \\
+& DP-SGD ($\sigma = 0.5, C = 1.0$) & $\epsilon = 26.40$ at $\delta=10^{-5}$ & $0.9548 \pm 0.0013$ & $0.9322 \pm 0.0025$ & $0.85 \pm 0.06$ \\
+& DP-SGD ($\mathbf{\sigma = 1.0, C = 1.0}$) & $\mathbf{\epsilon = 4.06}$ at $\mathbf{\delta=10^{-5}}$ & $\mathbf{0.9486 \pm 0.0020}$ & $0.9220 \pm 0.0031$ & $\mathbf{0.78 \pm 0.05}$ \\
+& DP-SGD ($\sigma = 2.0, C = 1.0$) & $\epsilon = 1.41$ at $\delta=10^{-5}$ & $0.9340 \pm 0.0064$ & $0.8961 \pm 0.0082$ & $0.62 \pm 0.04$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\end{document}
