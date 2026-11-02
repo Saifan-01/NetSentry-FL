@@ -67,17 +67,22 @@ class NetSentryClient(fl.client.NumPyClient):
             for p in self.model.parameters():
                 global_params_tensors.append(p.detach().clone())
                 
+        drop_last = (len(self.X_local) > batch_size)
         loader = DataLoader(
             TensorDataset(self.X_local, self.y_local),
             batch_size=batch_size,
-            shuffle=True
+            shuffle=True,
+            drop_last=drop_last
         )
         optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr, weight_decay=1e-4)
         
         self.model.train()
         total_loss = 0.0
+        batches_processed = 0
         for _ in range(epochs):
             for batch_x, batch_y in loader:
+                if batch_x.size(0) <= 1:
+                    continue
                 batch_x, batch_y = batch_x.to(self.device), batch_y.to(self.device)
                 optimizer.zero_grad()
                 logits = self.model(batch_x)
@@ -93,8 +98,9 @@ class NetSentryClient(fl.client.NumPyClient):
                 loss.backward()
                 optimizer.step()
                 total_loss += loss.item()
+                batches_processed += 1
 
-        avg_loss = total_loss / (len(loader) * epochs)
+        avg_loss = total_loss / max(batches_processed, 1)
         return get_model_parameters(self.model), self.num_samples, {"client_id": self.client_id, "train_loss": avg_loss}
 
     def evaluate(self, parameters: List[np.ndarray], config: Dict[str, str]) -> Tuple[float, int, Dict]:

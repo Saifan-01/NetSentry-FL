@@ -1,31 +1,31 @@
 Attack,Model,Recall_Mean,Recall_Std,Recall,Recall_Display,Total_Flows
-DoS,Centralized (MLP),0.9973,0.0012,0.9973,0.9973 +/- 0.0012,974
-DoS,Federated Dir(0.1) (FedAvg),0.8275,0.1497,0.8275,0.8275 +/- 0.1497,974
-DoS,Federated Dir(0.1) (FedProx mu=0.01),0.7984,0.1684,0.7984,0.7984 +/- 0.1684,974
-DoS,Federated IID (FedAvg),0.9983,0.003,0.9983,0.9983 +/- 0.0030,974
-DoS,Federated Silos (FedAvg),0.6016,0.0592,0.6016,0.6016 +/- 0.0592,974
-DoS,Federated Silos (FedProx mu=0.01),0.7618,0.0272,0.7618,0.7618 +/- 0.0272,974
-DoS,Federated Silos (FedProx mu=0.1),0.2765,0.1608,0.2765,0.2765 +/- 0.1608,974
-DoS,Local Client A (DoS),0.9887,0.0153,0.9887,0.9887 +/- 0.0153,974
+DoS,Centralized (MLP),0.9973,0.0033,0.9973,0.9973 +/- 0.0033,974
+DoS,Federated Dir(0.1) (FedAvg),0.8899,0.1305,0.8899,0.8899 +/- 0.1305,974
+DoS,Federated Dir(0.1) (FedProx),0.8782,0.143,0.8782,0.8782 +/- 0.1430,974
+DoS,Federated IID (FedAvg),0.9949,0.0023,0.9949,0.9949 +/- 0.0023,974
+DoS,Federated Silos (Equal-Weighted),0.5187,0.2363,0.5187,0.5187 +/- 0.2363,974
+DoS,Federated Silos (FedAvg),0.5131,0.2906,0.5131,0.5131 +/- 0.2906,974
+DoS,Federated Silos (FedProx),0.6686,0.1607,0.6686,0.6686 +/- 0.1607,974
+DoS,Local Client A (DoS),0.9883,0.0228,0.9883,0.9883 +/- 0.0228,974
 DoS,Local Client B (PortScan),0.0,0.0,0.0,0.0000 +/- 0.0000,974
-DoS,Local Client C (Web Attack),0.0599,0.0255,0.0599,0.0599 +/- 0.0255,974
-PortScan,Centralized (MLP),0.9989,0.0005,0.9989,0.9989 +/- 0.0005,1160
-PortScan,Federated Dir(0.1) (FedAvg),0.9891,0.0145,0.9891,0.9891 +/- 0.0145,1160
-PortScan,Federated Dir(0.1) (FedProx mu=0.01),0.9943,0.0057,0.9943,0.9943 +/- 0.0057,1160
-PortScan,Federated IID (FedAvg),0.9991,0.0,0.9991,0.9991 +/- 0.0000,1160
-PortScan,Federated Silos (FedAvg),0.9951,0.0036,0.9951,0.9951 +/- 0.0036,1160
-PortScan,Federated Silos (FedProx mu=0.01),0.9948,0.0026,0.9948,0.9948 +/- 0.0026,1160
-PortScan,Federated Silos (FedProx mu=0.1),0.9899,0.007,0.9899,0.9899 +/- 0.0070,1160
-PortScan,Local Client A (DoS),0.0118,0.0026,0.0118,0.0118 +/- 0.0026,1160
-PortScan,Local Client B (PortScan),0.9989,0.0005,0.9989,0.9989 +/- 0.0005,1160
-PortScan,Local Client C (Web Attack),0.0023,0.0005,0.0023,0.0023 +/- 0.0005,1160
-Web Attack,Centralized (MLP),0.9992,0.0013,0.9992,0.9992 +/- 0.0013,429
-Web Attack,Federated Dir(0.1) (FedAvg),0.5828,0.5034,0.5828,0.5828 +/- 0.5034,429
-Web Attack,Federated Dir(0.1) (FedProx mu=0.01),0.6123,0.4461,0.6123,0.6123 +/- 0.4461,429
-Web Attack,Federated IID (FedAvg),1.0,0.0,1.0,1.0000 +/- 0.0000,429
-Web Attack,Federated Silos (FedAvg),0.3582,0.4576,0.3582,0.3582 +/- 0.4576,429
-Web Attack,Federated Silos (FedProx mu=0.01),0.8765,0.0207,0.8765,0.8765 +/- 0.0207,429
-Web Attack,Federated Silos (FedProx mu=0.1),0.7848,0.1124,0.7848,0.7848 +/- 0.1124,429
-Web Attack,Local Client A (DoS),0.0148,0.0108,0.0148,0.0148 +/- 0.0108,429
+DoS,Local Client C (Web Attack),0.0444,0.0316,0.0444,0.0444 +/- 0.0316,974
+PortScan,Centralized (MLP),0.9986,0.0008,0.9986,0.9986 +/- 0.0008,1160
+PortScan,Federated Dir(0.1) (FedAvg),0.9862,0.0183,0.9862,0.9862 +/- 0.0183,1160
+PortScan,Federated Dir(0.1) (FedProx),0.9926,0.0084,0.9926,0.9926 +/- 0.0084,1160
+PortScan,Federated IID (FedAvg),0.9988,0.0005,0.9988,0.9988 +/- 0.0005,1160
+PortScan,Federated Silos (Equal-Weighted),0.9969,0.0034,0.9969,0.9969 +/- 0.0034,1160
+PortScan,Federated Silos (FedAvg),0.9991,0.0,0.9991,0.9991 +/- 0.0000,1160
+PortScan,Federated Silos (FedProx),0.9962,0.003,0.9962,0.9962 +/- 0.0030,1160
+PortScan,Local Client A (DoS),0.0116,0.0024,0.0116,0.0116 +/- 0.0024,1160
+PortScan,Local Client B (PortScan),0.9986,0.0005,0.9986,0.9986 +/- 0.0005,1160
+PortScan,Local Client C (Web Attack),0.0029,0.0013,0.0029,0.0029 +/- 0.0013,1160
+Web Attack,Centralized (MLP),1.0,0.0,1.0,1.0000 +/- 0.0000,429
+Web Attack,Federated Dir(0.1) (FedAvg),0.8065,0.2168,0.8065,0.8065 +/- 0.2168,429
+Web Attack,Federated Dir(0.1) (FedProx),0.7268,0.39,0.7268,0.7268 +/- 0.3900,429
+Web Attack,Federated IID (FedAvg),0.9986,0.0031,0.9986,0.9986 +/- 0.0031,429
+Web Attack,Federated Silos (Equal-Weighted),0.4839,0.3608,0.4839,0.4839 +/- 0.3608,429
+Web Attack,Federated Silos (FedAvg),0.3347,0.2321,0.3347,0.3347 +/- 0.2321,429
+Web Attack,Federated Silos (FedProx),0.5077,0.4635,0.5077,0.5077 +/- 0.4635,429
+Web Attack,Local Client A (DoS),0.0149,0.0042,0.0149,0.0149 +/- 0.0042,429
 Web Attack,Local Client B (PortScan),0.0,0.0,0.0,0.0000 +/- 0.0000,429
-Web Attack,Local Client C (Web Attack),0.993,0.0047,0.993,0.9930 +/- 0.0047,429
+Web Attack,Local Client C (Web Attack),0.9902,0.0086,0.9902,0.9902 +/- 0.0086,429

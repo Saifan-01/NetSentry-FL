@@ -21,14 +21,15 @@ plt.style.use("tableau-colorblind10")
 plt.rcParams.update({"font.family": "sans-serif", "font.size": 10})
 
 def generate_all_charts():
-    # 1. Convergence Chart (IID vs Non-IID F1 per round across 3 seeds)
+    # 1. Convergence Chart (IID vs Non-IID F1 per round across seeds)
     conv_df = pd.read_csv(EXPERIMENTS_DIR / "convergence_history.csv")
-    plt.figure(figsize=(8.5, 4.8))
+    f1_col = "test_f1" if "test_f1" in conv_df.columns else "f1"
+    plt.figure(figsize=(9, 5))
     
     for setup, grp in conv_df.groupby("setup"):
-        avg_rnd = grp.groupby("round")["f1"].mean()
-        std_rnd = grp.groupby("round")["f1"].std()
-        line = plt.plot(avg_rnd.index, avg_rnd.values, marker="o", linewidth=2.2, label=setup)
+        avg_rnd = grp.groupby("round")[f1_col].mean()
+        std_rnd = grp.groupby("round")[f1_col].std().fillna(0)
+        line = plt.plot(avg_rnd.index, avg_rnd.values, marker="o", linewidth=2.0, label=setup)
         plt.fill_between(
             avg_rnd.index,
             avg_rnd.values - std_rnd.values,
@@ -37,11 +38,11 @@ def generate_all_charts():
             color=line[0].get_color()
         )
         
-    plt.title("Federated Convergence: Global Model F1-Score per Round (Mean +/- Std, 3 Seeds)", fontsize=12, weight="bold", pad=10)
+    plt.title("Federated Convergence: Global Model F1-Score per Round (Mean +/- Std)", fontsize=12, weight="bold", pad=10)
     plt.xlabel("Communication Round", fontsize=11)
     plt.ylabel("Test F1-Score", fontsize=11)
     plt.grid(True, linestyle="--", alpha=0.5)
-    plt.legend(title="Federation Setup", frameon=True)
+    plt.legend(title="Federation Setup", frameon=True, fontsize=8.5, bbox_to_anchor=(1.02, 1), loc="upper left")
     plt.tight_layout()
     plt.savefig(CHARTS_DIR / "convergence_iid_vs_non_iid.png", dpi=300)
     plt.close()

@@ -1,0 +1,17 @@
+Partition,Epochs,Mu,Val_F1,Val_Recall,Val_FPR
+Extreme Silos,1,0.001,0.7678,0.6339,0.0093
+Extreme Silos,1,0.01,0.8283,0.7213,0.011
+Extreme Silos,1,0.1,0.8194,0.7049,0.0085
+Extreme Silos,1,1.0,0.936,0.897,0.0106
+Extreme Silos,2,0.001,0.8723,0.7783,0.0034
+Extreme Silos,2,0.01,0.8602,0.7611,0.0047
+Extreme Silos,2,0.1,0.9471,0.9087,0.0055
+Extreme Silos,2,1.0,0.9479,0.9235,0.0135
+Extreme Silos,5,0.001,0.8504,0.7408,0.0008
+Extreme Silos,5,0.01,0.8466,0.7432,0.0068
+Extreme Silos,5,0.1,0.7879,0.6596,0.008
+Extreme Silos,5,1.0,0.8857,0.8103,0.0106
+Dirichlet alpha=0.1,2,0.001,0.9225,0.8689,0.008
+Dirichlet alpha=0.1,2,0.01,0.9221,0.8681,0.008
+Dirichlet alpha=0.1,2,0.1,0.9189,0.8618,0.0076
+Dirichlet alpha=0.1,2,1.0,0.5247,0.3607,0.0076

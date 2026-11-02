@@ -34,6 +34,15 @@ class NetSentryClassifier(nn.Module):
         self.network = nn.Sequential(*layers)
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if self.training and x.size(0) == 1:
+            for m in self.network.modules():
+                if isinstance(m, nn.BatchNorm1d):
+                    m.eval()
+            out = self.network(x).squeeze(-1)
+            for m in self.network.modules():
+                if isinstance(m, nn.BatchNorm1d):
+                    m.train()
+            return out
         return self.network(x).squeeze(-1)
 
 def get_model_parameters(model: nn.Module) -> List[np.ndarray]:
