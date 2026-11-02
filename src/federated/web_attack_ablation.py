@@ -61,13 +61,15 @@ def run_ablation_simulation(
     
     config = {
         "local_epochs": 2,
-        "batch_size": 64,
+        "batch_size": 128,
         "lr": 0.001,
         "proximal_mu": proximal_mu
     }
     
     history = []
     web_idx_test = test_meta[test_meta["Category"] == "Web Attack"].index
+    X_test_t = torch.from_numpy(X_test)
+    X_val_t = torch.from_numpy(X_val)
     
     for rnd in range(1, num_rounds + 1):
         updates = []
@@ -80,8 +82,8 @@ def run_ablation_simulation(
         
         global_model.eval()
         with torch.no_grad():
-            test_probs = torch.sigmoid(global_model(torch.from_numpy(X_test))).numpy()
-            val_probs = torch.sigmoid(global_model(torch.from_numpy(X_val))).numpy()
+            test_probs = torch.sigmoid(global_model(X_test_t)).numpy()
+            val_probs = torch.sigmoid(global_model(X_val_t)).numpy()
             
         test_preds = (test_probs >= 0.5).astype(int)
         val_preds = (val_probs >= 0.5).astype(int)
@@ -101,6 +103,8 @@ def run_ablation_simulation(
     return global_model, test_probs, val_probs, history
 
 def main():
+    import os
+    torch.set_num_threads(min(12, os.cpu_count() or 4))
     seeds = [42, 101, 777, 1234, 5678]
     print(f"[*] Running Web Attack Collapse Ablation across {len(seeds)} seeds...", flush=True)
     
@@ -118,7 +122,7 @@ def main():
     ablation_setups = [
         {"name": "FedAvg (Sample-Weighted)", "weighting": "sample_weighted", "mu": 0.0},
         {"name": "FedAvg (Equal-Weighted 1/K)", "weighting": "equal_weighted", "mu": 0.0},
-        {"name": "FedProx (mu=0.01, Sample-Weighted)", "weighting": "sample_weighted", "mu": 0.01}
+        {"name": "FedProx (mu*=1.0, Sample-Weighted)", "weighting": "sample_weighted", "mu": 1.0}
     ]
     
     results_summary = []
@@ -161,7 +165,38 @@ def main():
         
     df_sum = pd.DataFrame(results_summary)
     df_sum.to_csv(EXPERIMENTS_DIR / "web_attack_ablation_summary.csv", index=False)
-    pd.DataFrame(round_records).to_csv(EXPERIMENTS_DIR / "web_attack_ablation_history.csv", index=False)
+    df_rounds = pd.DataFrame(round_records)
+    df_rounds.to_csv(EXPERIMENTS_DIR / "web_attack_ablation_history.csv", index=False)
+    
+    # Generate Per-Round Web Attack Recall Plot
+    import matplotlib.pyplot as plt
+    plt.style.use("tableau-colorblind10")
+    plt.rcParams.update({"font.family": "sans-serif", "font.size": 10})
+    plt.figure(figsize=(8.5, 4.8))
+    
+    for strat, grp in df_rounds.groupby("strategy"):
+        mean_curve = grp.groupby("round")["web_attack_recall"].mean()
+        std_curve = grp.groupby("round")["web_attack_recall"].std().fillna(0)
+        line = plt.plot(mean_curve.index, mean_curve.values, marker="o", linewidth=2.0, label=strat)
+        plt.fill_between(
+            mean_curve.index,
+            np.clip(mean_curve.values - std_curve.values, 0.0, 1.0),
+            np.clip(mean_curve.values + std_curve.values, 0.0, 1.0),
+            alpha=0.15,
+            color=line[0].get_color()
+        )
+        
+    plt.title("Web Attack Minority Recall across Rounds: FedAvg vs. Equal Weighting vs. FedProx", fontsize=11, weight="bold", pad=10)
+    plt.xlabel("Communication Round", fontsize=11)
+    plt.ylabel("Web Attack Recall (429 Test Flows)", fontsize=11)
+    plt.ylim(-0.05, 1.05)
+    plt.grid(True, linestyle="--", alpha=0.5)
+    plt.legend(frameon=True, fontsize=9)
+    plt.tight_layout()
+    chart_path = PROJECT_ROOT / "reports" / "charts" / "web_attack_recall_per_round.png"
+    plt.savefig(chart_path, dpi=300)
+    plt.close()
+    print(f"[+] Saved Web Attack Recall Per-Round Chart to {chart_path}", flush=True)
     
     print("\n" + "="*85, flush=True)
     print("             WEB ATTACK MINORITY CLASS ABLATION (5 SEEDS)             ", flush=True)

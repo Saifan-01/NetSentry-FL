@@ -1,0 +1,9 @@
+Experiment,Total_Clients,Malicious_Clients,Malicious_Ratio,Aggregator,F1_Mean,F1_Std,Recall_Mean,Recall_Std,Precision_Mean,Precision_Std,FPR_Mean,FPR_Std,F1,Recall,False_Alarm_Rate
+"No Attack (3 Clients, FedAvg)",3,0,0.0%,fedavg,0.9888,0.0019,0.998,0.0005,0.9796,0.0041,0.0112,0.0023,0.9888 +/- 0.0019,0.9980 +/- 0.0005,0.0112 +/- 0.0023
+"Label-Flip Attack (3 Clients, FedAvg)",3,1,33.3%,fedavg,0.9738,0.0078,0.9903,0.0073,0.9579,0.0121,0.0236,0.007,0.9738 +/- 0.0078,0.9903 +/- 0.0073,0.0236 +/- 0.0070
+"Label-Flip Attack (3 Clients, Coordinate Median)",3,1,33.3%,median,0.986,0.0021,0.9941,0.0025,0.978,0.0041,0.0121,0.0023,0.9860 +/- 0.0021,0.9941 +/- 0.0025,0.0121 +/- 0.0023
+"Label-Flip Attack (3 Clients, Trimmed Mean)",3,1,33.3%,trimmed_mean,0.986,0.0021,0.9941,0.0025,0.978,0.0041,0.0121,0.0023,0.9860 +/- 0.0021,0.9941 +/- 0.0025,0.0121 +/- 0.0023
+"No Attack (5 Clients, FedAvg)",5,0,0.0%,fedavg,0.9871,0.0009,0.997,0.0003,0.9774,0.0021,0.0125,0.0012,0.9871 +/- 0.0009,0.9970 +/- 0.0003,0.0125 +/- 0.0012
+"Label-Flip Attack (5 Clients, FedAvg)",5,1,20.0%,fedavg,0.9793,0.004,0.9968,0.0018,0.9624,0.0087,0.0211,0.0051,0.9793 +/- 0.0040,0.9968 +/- 0.0018,0.0211 +/- 0.0051
+"Label-Flip Attack (5 Clients, Coordinate Median)",5,1,20.0%,median,0.987,0.0011,0.997,0.0012,0.9771,0.0031,0.0126,0.0018,0.9870 +/- 0.0011,0.9970 +/- 0.0012,0.0126 +/- 0.0018
+"Label-Flip Attack (5 Clients, Trimmed Mean)",5,1,20.0%,trimmed_mean,0.9869,0.0012,0.9967,0.0011,0.9772,0.003,0.0126,0.0017,0.9869 +/- 0.0012,0.9967 +/- 0.0011,0.0126 +/- 0.0017

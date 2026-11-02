@@ -81,31 +81,29 @@
 | **Federated, non-IID Dir(0.1) (FedAvg)** | 0.9894 $\pm$ 0.0053 | 0.9195 $\pm$ 0.0647 | 0.9519 $\pm$ 0.0336 | 0.9933 $\pm$ 0.0044 | 0.55% $\pm$ 0.29% |
 | **Federated, non-IID Dir(0.1) (FedProx $\mu^*=0.001$)** | 0.9888 $\pm$ 0.0058 | 0.9046 $\pm$ 0.0959 | 0.9417 $\pm$ 0.0529 | 0.9928 $\pm$ 0.0050 | 0.59% $\pm$ 0.32% |
 
-*Key finding:* FedProx delivers a **+5.7 points** gain in F1-score and **+8.7 points** gain in Recall on Extreme Silos over FedAvg. On Dirichlet skew ($\alpha=0.1$), performance ranges overlap within standard error (no statistically clear difference).
+*Key finding:* FedProx delivers a **+5.7 points** gain in F1-score and **+8.7 points** gain in Recall on Extreme Silos over FedAvg, winning in **4 out of 5 seeds**. Over the last 3 rounds (rounds 13–15), FedProx stabilizes to **0.9112 $\pm$ 0.0355** vs FedAvg's **0.8142 $\pm$ 0.0622**. On Dirichlet skew ($\alpha=0.1$), performance ranges overlap within standard error (no statistically clear difference).
 
 ---
 
 ### Slide 7: Dissecting the Web Attack Collapse & Minority Class Ablation
 - **The Empirical Problem:**
-  - Client C possesses only 1,500 Web Attack training flows (27.5% weight) vs 3,400+ for Clients A & B.
+  - Client C holds 1,500 attack flows out of 8,969 total attack flows in the training partition, representing **16.7% of all attacks** (while its 7,017 total flows represent 27.5% of overall training traffic).
   - In standard sample-weighted FedAvg ($w_k = n_k/N$), majority client updates overwrite Client C's gradients.
   - Result: Web Attack recall collapses to **33.47% $\pm$ 23.21%** under standard FedAvg.
-- **Ablation Analysis:**
-  - **Equal Weighting ($w_k = 1/K = 1/3$):** Boosts Web Attack recall to **48.39% $\pm$ 36.08% (+14.9 points)** by preventing update dilution.
-  - **FedProx ($\mu^*=1.0$):** Restricts local parameter divergence, preserving minority attack boundaries and elevating Web Attack recall to **50.77% $\pm$ 46.35% (+17.3 points)** and DoS recall to **66.86% $\pm$ 16.07%**.
-- **Ablation Analysis:**
-  - **Equal Weighting ($w_k = 1/K = 1/3$):** Boosts Web Attack representation during server aggregation.
-  - **FedProx ($\mu^*=0.01$):** Restricts local parameter divergence, preserving minority attack boundaries and elevating Web Attack recall to **87.65% $\pm$ 2.07%**.
+- **Ablation Findings:**
+  - **Equal Weighting ($w_k = 1/K = 1/3$):** Boosts Web Attack recall to **48.39% $\pm$ 36.08% (+14.9 points)** by mitigating parameter dilution.
+  - **FedProx ($\mu^*=1.0$):** Restricts local parameter divergence, elevating mean Web Attack recall to **50.77% $\pm$ 46.35% (+17.3 points)** and DoS recall to **66.86% $\pm$ 16.07%**.
+  - **Honest Statistical Caveat:** While FedProx improves the mean across 4 of 5 seeds, the minority class spread remains large ($\pm 46.35\%$), indicating sensitivity to weight initialization.
 
 ---
 
-### Slide 8: Privacy-Preserving Feature Scaling Analysis
+### Slide 8: Privacy-Preserving Feature Scaling Analysis (5 Seeds)
 - **The Challenge:** Fitting global scalers assumes centralized pooling of private training flows.
-- **Evaluation of Decentralized Normalization Alternatives (Extreme Silos, MLP, 3 seeds):**
-  - **Pooled QuantileTransformer:** F1: 0.8498, Recall: 74.37%, FPR: 0.36%.
-  - **Local QuantileTransformer (Zero Pooling):** F1: 0.7900, Recall: 65.82%, FPR: 0.44% (incurs only an ~8.5 points drop in recall while maintaining 98.77% precision).
-  - **Fixed Parameterless Normalization ($\log(1+x)$):** F1: 0.6963, Recall: 53.77%, FPR: 0.36%.
-- **Takeaway:** Local quantile transformation provides an effective, privacy-compliant trade-off for cross-silo production environments.
+- **Evaluation of Decentralized Normalization Alternatives (Extreme Silos, MLP, 5 Seeds):**
+  - **Pooled QuantileTransformer:** F1: **0.8521 $\pm$ 0.0608**, Recall: **75.18% $\pm$ 9.22%**, FPR: **0.33% $\pm$ 0.17%**.
+  - **Local QuantileTransformer (Zero Pooling):** F1: **0.8425 $\pm$ 0.0321**, Recall: **73.80% $\pm$ 4.79%**, FPR: **0.66% $\pm$ 0.14%** (incurs only a **1.0 point drop in F1** and **1.4 points drop in Recall**, while cutting variance in half).
+  - **Fixed Parameterless Normalization ($\log(1+x)$ + RFC bounds):** F1: **0.8602 $\pm$ 0.0654**, Recall: **76.51% $\pm$ 9.60%**, FPR: **0.36% $\pm$ 0.10%**.
+- **Takeaway:** Decentralized local quantile transformation and static parameterless normalization are viable, privacy-preserving drop-in replacements for pooled scalers in production cross-silo FL.
 
 ---
 
@@ -120,10 +118,48 @@
 
 ---
 
-### Slide 10: Conclusion & Roadmap to Month 6
-1. **Validation of Federation:** Collaborative training eliminates silo blindspots (recovering up to 99% recall on PortScan and DoS without raw data exchange).
-2. **Heterogeneity Mitigation:** FedProx successfully stabilizes cross-silo training (+9.2 points F1 gain on extreme silos) and shields minority Web Attacks from catastrophic forgetting.
-3. **Month 6 Roadmap:**
-   - **Differential Privacy (DP):** DP-SGD via Opacus ($\epsilon, \delta$ privacy budget tracking).
-   - **Bandwidth Compression:** FP16/INT8 weight quantization and top-$k$ gradient sparsification.
-   - **Byzantine & Poisoning Robustness:** Resisting label-flipping attacks via trimmed mean and coordinate-wise median aggregation.
+### Slide 10: Model Quantization & Communication Efficiency (5 Seeds)
+- **Motivation:** Slashing network transmission payload in edge and multi-tenant security operations.
+- **Evaluation Across 5 Seeds:**
+  - **FP32 (Baseline):** 85.65 KB | F1: 0.9898 $\pm$ 0.0004 | Recall: 0.9980 $\pm$ 0.0012 | FPR: 1.01%
+  - **FP16 (Half Precision):** 46.40 KB (**45.8% savings**) | F1: 0.9898 $\pm$ 0.0004 | Recall: 0.9980 $\pm$ 0.0012 | FPR: 1.01%
+  - **INT8 (Dynamic Quantization):** **32.88 KB** (**61.6% savings**) | **F1: 0.9900 $\pm$ 0.0004** | **Recall: 0.9979 $\pm$ 0.0010** | **FPR: 0.98%**
+- **Conclusion:** 61.6% bandwidth reduction with zero degradation in detection utility or false alarms.
+
+---
+
+### Slide 11: Byzantine Robustness: Defending Against Label-Flipping Attacks
+- **Threat Model:** 1 malicious compromised client performing continuous label-flipping ($y \leftarrow 1 - y$).
+- **Vulnerability of FedAvg:**
+  - 3 Clients (33.3% malicious): FedAvg FPR surges to **2.36% $\pm$ 0.70%** (peak 3.34%), F1 drops from 0.9888 to 0.9738.
+  - 5 Clients (20.0% malicious): FedAvg FPR nearly doubles to **2.11% $\pm$ 0.51%** (peak 2.96%), F1 drops to 0.9793.
+- **Robust Aggregation Defenses (Coordinate Median & Trimmed Mean):**
+  - **Coordinate Median (3 Clients):** Restores F1 to **0.9860 $\pm$ 0.0021** and suppresses FPR to **1.21% $\pm$ 0.23%**.
+  - **Coordinate Median (5 Clients):** Restores F1 to **0.9870 $\pm$ 0.0011** and suppresses FPR to **1.26% $\pm$ 0.18%** (matching the 1.25% benign baseline).
+  - **Trimmed Mean:** Yields identical robust recovery, filtering malicious gradient updates.
+
+---
+
+### Slide 12: Formal Differential Privacy via Opacus (DP-SGD)
+- **Implementation:** Per-sample gradient clipping ($C=1.0$) and calibrated Gaussian noise injection with Opacus PrivacyEngine.
+- **Architecture:** GroupNorm MLP (`norm_type="group_norm"`), guaranteeing batch-size independence and Opacus compliance. Fair comparison using identical GroupNorm for Non-DP baseline.
+- **Privacy-Utility Tradeoff ($\delta=10^{-5}$, 5 Seeds):**
+  - **Non-DP Baseline:** F1: 0.9851 $\pm$ 0.0032 | Recall: 99.94% | $\epsilon = \infty$
+  - **DP-SGD ($\sigma=0.5$):** F1: 0.9548 $\pm$ 0.0013 | Recall: 93.22% | $\epsilon = 26.40$
+  - **DP-SGD ($\sigma=1.0$):** **F1: 0.9486 $\pm$ 0.0020** | **Recall: 92.20%** | $\mathbf{\epsilon = 4.06}$ (strong mathematical guarantee with only 3.6 points F1 cost)
+  - **DP-SGD ($\sigma=2.0$):** F1: 0.9340 $\pm$ 0.0064 | Recall: 89.61% | $\mathbf{\epsilon = 1.41}$ (extreme privacy budget, $\epsilon < 1.5$)
+- **DP on Extreme Silos (FedProx $\mu=1.0$, $\sigma=1.0$):**
+  - F1: **0.9384 $\pm$ 0.0015** | $\epsilon = 4.10$ | Web Attack Recall: **84.62%**.
+  - Per-sample gradient clipping prevents gradient explosion from majority DoS clients, stabilizing Silo training.
+
+---
+
+### Slide 13: Summary of Months 1 to 6 & Roadmap to Month 7
+1. **Months 1–3:** Prototype baseline pipeline, 3-client FedAvg prototype.
+2. **Month 4:** Transition to real CIC-IDS2017 benchmark, deterministic preprocessing, fixed MLP baseline (F1 0.43 -> 0.989).
+3. **Month 5:** Core heterogeneity experiments, per-attack blindspots, FedProx stabilization, decentralized scaling privacy analysis.
+4. **Month 6:** Model quantization (61.6% compression), Byzantine defense against label poisoning, Opacus DP-SGD ($\epsilon=4.06$).
+5. **Month 7 Roadmap (Packaging & Final Defense):**
+   - End-to-end containerized client-server deployment (Docker/Compose).
+   - Automated regression testing and continuous evaluation.
+   - Comprehensive final defense report and interactive executive dashboard.

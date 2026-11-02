@@ -38,14 +38,16 @@ def evaluate_pred(y_true, y_prob):
         "fpr": fp / (fp + tn) if (fp + tn) > 0 else 0.0
     }
 
-def run_federated_trial(clients_dict, input_dim, X_test, y_test, num_rounds=8):
+def run_federated_trial(clients_dict, input_dim, X_test, y_test, num_rounds=15, seed=42):
+    torch.manual_seed(seed)
+    np.random.seed(seed)
     clients = [
         NetSentryClient(cid, clients_dict[cid]["X"], clients_dict[cid]["y"], input_dim)
         for cid in range(len(clients_dict))
     ]
     global_model = NetSentryClassifier(input_dim=input_dim, hidden_dims=[128, 64, 32], dropout_rate=0.1)
     global_params = get_model_parameters(global_model)
-    config = {"local_epochs": 2, "batch_size": 64, "lr": 0.001, "proximal_mu": 0.0}
+    config = {"local_epochs": 2, "batch_size": 128, "lr": 0.001, "proximal_mu": 0.0}
     
     for rnd in range(1, num_rounds + 1):
         updates = []
@@ -61,20 +63,16 @@ def run_federated_trial(clients_dict, input_dim, X_test, y_test, num_rounds=8):
     return evaluate_pred(y_test, probs)
 
 def main():
-    print("[*] Loading unscaled raw partitions...")
-    # Read raw curated dataset
+    import os
+    torch.set_num_threads(min(12, os.cpu_count() or 4))
+    print("[*] Loading unscaled raw partitions for 5-Seed Scaling Privacy Analysis...", flush=True)
     df_raw = pd.read_csv(PROJECT_ROOT / "data" / "raw" / "real_cicids2017_curated.csv")
     train_meta = pd.read_csv(PROCESSED_DIR / "train_metadata.csv")
     test_meta = pd.read_csv(PROCESSED_DIR / "test_metadata.csv")
     
-    # Identify feature columns
     label_cols = ["Label", "Binary_Label", "Category"]
     feature_cols = [c for c in df_raw.columns if c not in label_cols]
     
-    # Re-extract raw unscaled features using metadata indexes
-    # Note: df_raw is partitioned deterministically 70/10/20 in preprocess.py
-    from src.data.preprocess import split_and_scale_data
-    # Run with standard raw output
     from sklearn.model_selection import train_test_split
     df_train_val, df_test = train_test_split(df_raw, test_size=0.20, stratify=df_raw["Category"], random_state=42)
     df_train, df_val = train_test_split(df_train_val, test_size=0.125, stratify=df_train_val["Category"], random_state=42)
@@ -85,81 +83,86 @@ def main():
     y_test = df_test["Binary_Label"].values.astype(np.float32)
     input_dim = len(feature_cols)
     
-    results = []
+    seeds = [42, 101, 777, 1234, 5678]
     
-    # Paradigm 1: Pooled QuantileTransformer
-    print("\n--- 1. Evaluating Pooled QuantileTransformer ---")
-    scaler_pooled = QuantileTransformer(output_distribution="normal", random_state=42, n_quantiles=min(1000, len(X_train_raw)))
-    X_train_p = np.clip(scaler_pooled.fit_transform(X_train_raw), -5.0, 5.0).astype(np.float32)
-    X_test_p = np.clip(scaler_pooled.transform(X_test_raw), -5.0, 5.0).astype(np.float32)
+    # Storage for multi-seed runs
+    p_runs = []
+    loc_runs = []
+    f_runs = []
     
-    silos_p = create_extreme_attack_silos(X_train_p, train_meta, seed=42)
-    m_p = run_federated_trial(silos_p, input_dim, X_test_p, y_test, num_rounds=15)
-    print(f"Pooled QuantileTransformer -> F1: {m_p['f1']:.4f}, Recall: {m_p['recall']:.4f}, Precision: {m_p['precision']:.4f}, FPR: {m_p['fpr']*100:.2f}%")
-    results.append({
-        "Paradigm": "Pooled QuantileTransformer (Simulation Baseline)",
-        "Privacy_Guarantee": "Low (Requires pooled data or centralized quantiles)",
-        "F1": m_p["f1"],
-        "Recall": m_p["recall"],
-        "Precision": m_p["precision"],
-        "FPR": m_p["fpr"]
-    })
-    
-    # Paradigm 2: Local Per-Client QuantileTransformer
-    print("\n--- 2. Evaluating Local Per-Client QuantileTransformer ---")
-    # In extreme silos, each client fits its OWN scaler on its private data only
-    silos_raw = create_extreme_attack_silos(X_train_raw, train_meta, seed=42)
-    silos_local = {}
-    scalers_local = {}
-    for cid in range(3):
-        sc = QuantileTransformer(output_distribution="normal", random_state=42, n_quantiles=min(1000, len(silos_raw[cid]["X"])))
-        X_local_scaled = np.clip(sc.fit_transform(silos_raw[cid]["X"]), -5.0, 5.0).astype(np.float32)
-        silos_local[cid] = {
-            "X": X_local_scaled,
-            "y": silos_raw[cid]["y"],
-            "categories": silos_raw[cid]["categories"]
-        }
-        scalers_local[cid] = sc
-        
-    # At test time, test on an ensemble or median transformation across local scalers
-    # We test on client 0's local transform as representative local evaluation
-    X_test_loc = np.clip(scalers_local[0].transform(X_test_raw), -5.0, 5.0).astype(np.float32)
-    m_loc = run_federated_trial(silos_local, input_dim, X_test_loc, y_test, num_rounds=15)
-    print(f"Local QuantileTransformer -> F1: {m_loc['f1']:.4f}, Recall: {m_loc['recall']:.4f}, Precision: {m_loc['precision']:.4f}, FPR: {m_loc['fpr']*100:.2f}%")
-    results.append({
-        "Paradigm": "Local QuantileTransformer (Strictly Decentralized)",
-        "Privacy_Guarantee": "High (Zero raw data or quantile pooling)",
-        "F1": m_loc["f1"],
-        "Recall": m_loc["recall"],
-        "Precision": m_loc["precision"],
-        "FPR": m_loc["fpr"]
-    })
-    
-    # Paradigm 3: Fixed Parameterless Normalization (log1p + Constant Clipping)
-    print("\n--- 3. Evaluating Fixed Parameterless Normalization (log1p + clip) ---")
+    # Fixed transform definition
     def fixed_transform(arr):
         log_arr = np.log1p(np.maximum(0, arr))
-        # Fixed scaling using public RFC internet bandwidth bounds: clip to [0, 20] and scale to [-5, 5]
         clipped = np.clip(log_arr, 0.0, 20.0)
         return ((clipped / 10.0) - 1.0).astype(np.float32)
         
     X_train_f = fixed_transform(X_train_raw)
     X_test_f = fixed_transform(X_test_raw)
-    silos_f = create_extreme_attack_silos(X_train_f, train_meta, seed=42)
-    m_f = run_federated_trial(silos_f, input_dim, X_test_f, y_test, num_rounds=15)
-    print(f"Fixed Parameterless (log1p) -> F1: {m_f['f1']:.4f}, Recall: {m_f['recall']:.4f}, Precision: {m_f['precision']:.4f}, FPR: {m_f['fpr']*100:.2f}%")
-    results.append({
-        "Paradigm": "Fixed Parameterless Normalization (log1p + Constant Bounds)",
-        "Privacy_Guarantee": "Complete (Zero data fitting, completely static)",
-        "F1": m_f["f1"],
-        "Recall": m_f["recall"],
-        "Precision": m_f["precision"],
-        "FPR": m_f["fpr"]
-    })
+    
+    print(f"[*] Running 5 seeds {seeds} across 3 scaling paradigms...", flush=True)
+    for s in seeds:
+        print(f"\n--- Seed {s} ---", flush=True)
+        # 1. Pooled Quantile
+        scaler_p = QuantileTransformer(output_distribution="normal", random_state=s, n_quantiles=min(1000, len(X_train_raw)))
+        X_train_p = np.clip(scaler_p.fit_transform(X_train_raw), -5.0, 5.0).astype(np.float32)
+        X_test_p = np.clip(scaler_p.transform(X_test_raw), -5.0, 5.0).astype(np.float32)
+        silos_p = create_extreme_attack_silos(X_train_p, train_meta, seed=s)
+        m_p = run_federated_trial(silos_p, input_dim, X_test_p, y_test, num_rounds=15, seed=s)
+        p_runs.append(m_p)
+        print(f"  [Seed {s}] Pooled Quantile: F1={m_p['f1']:.4f}, Recall={m_p['recall']:.4f}, Precision={m_p['precision']:.4f}", flush=True)
+        
+        # 2. Local Quantile (zero pooling)
+        silos_raw = create_extreme_attack_silos(X_train_raw, train_meta, seed=s)
+        silos_local = {}
+        scalers_local = {}
+        for cid in range(3):
+            sc = QuantileTransformer(output_distribution="normal", random_state=s, n_quantiles=min(1000, len(silos_raw[cid]["X"])))
+            X_loc = np.clip(sc.fit_transform(silos_raw[cid]["X"]), -5.0, 5.0).astype(np.float32)
+            silos_local[cid] = {"X": X_loc, "y": silos_raw[cid]["y"], "categories": silos_raw[cid]["categories"]}
+            scalers_local[cid] = sc
+        X_test_loc = np.clip(scalers_local[0].transform(X_test_raw), -5.0, 5.0).astype(np.float32)
+        m_loc = run_federated_trial(silos_local, input_dim, X_test_loc, y_test, num_rounds=15, seed=s)
+        loc_runs.append(m_loc)
+        print(f"  [Seed {s}] Local Quantile:  F1={m_loc['f1']:.4f}, Recall={m_loc['recall']:.4f}, Precision={m_loc['precision']:.4f}", flush=True)
+        
+        # 3. Fixed Parameterless
+        silos_f = create_extreme_attack_silos(X_train_f, train_meta, seed=s)
+        m_f = run_federated_trial(silos_f, input_dim, X_test_f, y_test, num_rounds=15, seed=s)
+        f_runs.append(m_f)
+        print(f"  [Seed {s}] Fixed Normalization: F1={m_f['f1']:.4f}, Recall={m_f['recall']:.4f}, Precision={m_f['precision']:.4f}", flush=True)
+        
+    def summarize(runs_list, name, priv):
+        f1_vals = [r["f1"] for r in runs_list]
+        rec_vals = [r["recall"] for r in runs_list]
+        prec_vals = [r["precision"] for r in runs_list]
+        fpr_vals = [r["fpr"] for r in runs_list]
+        return {
+            "Paradigm": name,
+            "Privacy_Level": priv,
+            "F1_Mean": float(np.mean(f1_vals)),
+            "F1_Std": float(np.std(f1_vals)),
+            "Recall_Mean": float(np.mean(rec_vals)),
+            "Recall_Std": float(np.std(rec_vals)),
+            "Precision_Mean": float(np.mean(prec_vals)),
+            "Precision_Std": float(np.std(prec_vals)),
+            "FPR_Mean": float(np.mean(fpr_vals)),
+            "FPR_Std": float(np.std(fpr_vals)),
+            "F1": f"{np.mean(f1_vals):.4f} +/- {np.std(f1_vals):.4f}",
+            "Recall": f"{np.mean(rec_vals):.4f} +/- {np.std(rec_vals):.4f}",
+            "Precision": f"{np.mean(prec_vals):.4f} +/- {np.std(prec_vals):.4f}",
+            "False positive rate": f"{np.mean(fpr_vals):.4f} +/- {np.std(fpr_vals):.4f}"
+        }
+        
+    results = [
+        summarize(p_runs, "Pooled QuantileTransformer (Simulation Baseline)", "Low (Assumes pooled data)"),
+        summarize(loc_runs, "Local QuantileTransformer (Strictly Decentralized)", "High (Zero raw data or quantile pooling)"),
+        summarize(f_runs, "Fixed Parameterless Normalization (log1p + Constant Bounds)", "Complete (Zero fitting, 100% static)")
+    ]
     
     df_scal = pd.DataFrame(results)
     df_scal.to_csv(EXPERIMENTS_DIR / "scaling_privacy_comparison.csv", index=False)
-    print("\nSaved scaling comparison to experiments/scaling_privacy_comparison.csv")
+    print("\nSaved 5-seed scaling comparison to experiments/scaling_privacy_comparison.csv")
+    print(df_scal[["Paradigm", "Recall", "F1", "Precision", "False positive rate"]].to_string(index=False))
 
 if __name__ == "__main__":
     main()

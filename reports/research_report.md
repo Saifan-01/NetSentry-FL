@@ -47,18 +47,17 @@ Replacing this with `QuantileTransformer(output_distribution="normal")` fitted *
 A fundamental question in federated intrusion detection is whether feature scaling statistics require pooling raw data. In a strict federated setting, computing global quantile transforms over pooled raw data is impossible without tenant data exchange. NetSentry-FL evaluates three paradigms to quantify this trade-off:
 
 ### Table 1: Decentralized Normalization Benchmark
-*(Architecture: 3-layer MLP, Partition: Extreme Attack Silos, Evaluated across 3 Random Seeds on 7,292 Held-Out Test Flows)*
+*(Architecture: 3-layer MLP, Partition: Extreme Attack Silos, Evaluated across 5 Random Seeds [42, 101, 777, 1234, 5678] on 7,292 Held-Out Test Flows)*
 
 | Scaling Paradigm | Privacy Level | Recall | F1-Score | Precision | False Alarm Rate (FPR) |
 | :--- | :--- | :---: | :---: | :---: | :---: |
-| **Pooled QuantileTransformer** (Simulation Baseline) | Low (Assumes pooled training data) | **74.37%** | **0.8498** | 99.12% | **0.36%** |
-| **Local QuantileTransformer** (Strictly Decentralized) | High (Zero raw data or quantile pooling) | **65.82%** | **0.7900** | 98.77% | **0.44%** |
-| **Fixed Parameterless Normalization** ($\log(1+x)$ + RFC bounds) | Complete (Zero fitting, 100% static) | **53.77%** | **0.6963** | 98.78% | **0.36%** |
+| **Pooled QuantileTransformer** (Simulation Baseline) | Low (Assumes pooled training data) | **75.18% $\pm$ 9.22%** | **0.8521 $\pm$ 0.0608** | 99.19% $\pm$ 0.43% | **0.33% $\pm$ 0.17%** |
+| **Local QuantileTransformer** (Strictly Decentralized) | High (Zero raw data or quantile pooling) | **73.80% $\pm$ 4.79%** | **0.8425 $\pm$ 0.0321** | 98.37% $\pm$ 0.38% | **0.66% $\pm$ 0.14%** |
+| **Fixed Parameterless Normalization** ($\log(1+x)$ + RFC bounds) | Complete (Zero fitting, 100% static) | **76.51% $\pm$ 9.60%** | **0.8602 $\pm$ 0.0654** | 99.11% $\pm$ 0.32% | **0.36% $\pm$ 0.10%** |
 
 ### Key Architectural Finding:
-- Transitioning to **Local QuantileTransformer** (fitted strictly on each client's private telemetry) incurs an **8.6 points drop in recall** ($74.37\% \to 65.82\%$) and a **6.0 points drop in F1-score** ($0.8498 \to 0.7900$), while fully maintaining high precision (98.77%) and low false alarm rates (0.44%).
-- The performance penalty arises from feature space misalignment across heterogeneous clients rather than optimization failure.
-- For maximum compliance, **Fixed Parameterless Normalization** provides complete privacy with zero statistical exchange, requiring additional training rounds to match quantile performance.
+- Transitioning to **Local QuantileTransformer** (fitted strictly on each client's private telemetry) incurs only a **1.4 points drop in recall** ($75.18\% \to 73.80\%$) and a **1.0 point drop in F1-score** ($0.8521 \to 0.8425$), while dramatically reducing cross-seed variance ($\pm 0.0321$ vs $\pm 0.0608$) and maintaining 98.37% precision and 0.66% FPR with zero data exchange.
+- For maximum compliance, **Fixed Parameterless Normalization** achieves $0.8602 \pm 0.0654$ F1 and 76.51% recall with zero data fitting or parameter communication.
 
 ---
 
@@ -116,18 +115,20 @@ The per-attack-type recall analysis directly demonstrates why cross-organization
 | **Federated Dir(0.1) (FedProx $\mu^*=0.001$)** | 87.82% $\pm$ 14.30% | 99.26% $\pm$ 0.84% | 72.68% $\pm$ 39.00% | 90.46% |
 
 - **Local Isolated Models Fail:** Client B suffers a **total 0.00% blindspot on DoS and Web Attacks**. Client A detects only 1.16% of PortScans. Client C detects only 4.44% of DoS floods.
-- **Federated Models Detect All Attack Vectors:** Both Federated IID and non-IID models eliminate local blindspots without exchanging raw private flow records.
+- **Federated Models Detect All Attack Vectors:** Federated IID **matches centralized performance** (F1 0.9894 $\pm$ 0.0007 vs. 0.9883 $\pm$ 0.0030), and both Federated IID and non-IID models eliminate local blindspots without exchanging raw private flow records.
 
 ### 6.2 FedProx Overcomes Client Drift and Protects Minority Classes
 Under extreme silos, standard FedAvg suffers from **client drift**:
-- Local models optimize in conflicting directions, causing updates from the minority class (Client C Web Attacks, 1,500 samples; 27.5% of attack training partition) to be overwritten by majority clients (DoS and PortScan, 3,400+ samples; 72.5% combined).
+- Local models optimize in conflicting directions, causing updates from the minority class (Client C Web Attacks: 1,500 samples out of 8,969 total attack flows in the training partition, representing **16.7% of all attacks**, while its 7,017 total flows represent 27.5% of the overall 25,522-flow training partition) to be overwritten by majority clients (DoS and PortScan: 7,469 attack flows, 83.3% of attacks).
 - Under sample-weighted FedAvg ($w_k = n_k/N$), majority client updates dominate the aggregation. Consequently, FedAvg achieves only **33.47% recall on Web Attacks**.
-- **Equal Weighting Ablation ($w_k = 1/K = 1/3$):** Giving Client C equal aggregation weight recovers Web Attack recall from **33.47% to 48.39% (+14.9 points)**, showing that update dilution was a key driver of minority collapse.
-- **FedProx Proximal Regularization ($\mu^*=1.0$):** By adding $\frac{\mu}{2} \sum \|w - w_t\|^2$, FedProx prevents client weights from drifting in orthogonal directions during local epochs. This preserves minority attack boundaries, elevating Web Attack recall to **50.77%** and overall Silo Recall from **70.32% to 78.99% (+8.7 points)**, with F1 jumping from **0.8182 to 0.8750 (+5.7 points)**.
+- **Equal Weighting Ablation ($w_k = 1/K = 1/3$):** Giving Client C equal aggregation weight recovers Web Attack recall from **33.47% to 48.39% (+14.9 points)**, showing that update dilution contributes to minority suppression.
+- **FedProx Proximal Regularization ($\mu^*=1.0$):** By adding $\frac{\mu}{2} \sum \|w - w_t\|^2$, FedProx prevents client weights from drifting in orthogonal directions during local epochs. FedProx improves the mean Web Attack recall from **33.47% to 50.77% (+17.3 points)** and overall Silo Recall from **70.32% to 78.99% (+8.7 points)**, with F1 jumping from **0.8182 to 0.8750 (+5.7 points)**.
+- **Paired-Seed Analysis and Stability:** Across the 5 seeds, FedProx outperforms FedAvg in **4 out of 5 seeds** (paired F1 differences: -0.0302, +0.2096, +0.0330, +0.0637, +0.0080). However, the 5-seed spread remains large ($\pm 0.4635$ on Web Attack recall), reflecting that minority class recall fluctuates between 0.0% and 86.2% depending on seed initialization. Evaluating the mean over the final 3 rounds (rounds 13–15), FedProx stabilizes to **0.9112 $\pm$ 0.0355** compared to FedAvg's **0.8142 $\pm$ 0.0622**, demonstrating reduced round-to-round oscillation.
 
 ### 6.3 Hyperparameter Selection on Validation Split & Skew Behavior
 - **Zero Test-Leakage Selection:** The proximal coefficient $\mu^*$ and local epochs $E^*$ were selected strictly on the 3,646-flow **Validation Split** (`X_val`), guaranteeing zero information leakage from the test partition (`experiments/validation_tuning_grid.csv`).
-- **Extreme Silo Dynamics:** On disjoint attack silos, $\mu^*=1.0$ provides the strongest regularization, preventing catastrophic forgetting of minority features.
+- **Validation-to-Test Gap Explanation:** Validation F1 reached 0.9479 on Seed 42 for 10 rounds, whereas test F1 across 5 seeds at Round 15 averaged 0.8750 (and 0.8757 on Seed 42). This difference stems from: (1) single-seed tuning on Seed 42; and (2) structural differences in category representation between the 3,646-flow validation split and the 7,292-flow held-out test split.
+- **Grid Boundary Check for $\mu$:** The validation search was extended to $\mu \in \{0.5, 1.0, 2.0, 5.0\}$. Validation F1 peaked between $\mu=1.0$ and $\mu=2.0$ (0.9409 at $\mu=2.0$ vs 0.9479 at $\mu=1.0$), tapering to 0.9254 at $\mu=5.0$, confirming that $\mu=1.0$ to $2.0$ forms the optimal proximal plateau without over-penalizing local convergence.
 - **Dirichlet Skew Dynamics:** On continuous Dirichlet skew ($\alpha=0.1$), FedAvg achieves F1 $0.9519 \pm 0.0336$, while FedProx ($\mu^*=0.001$) achieves $0.9417 \pm 0.0529$. Because the standard deviation intervals completely overlap, **there is no statistically significant difference between FedAvg and FedProx on continuous Dirichlet skew**. FedProx's true empirical advantage is concentrated in disjoint cross-silo attack distributions where client drift is severe.
 
 ### 6.4 Low False Alarm Rates (FPR < 1.7% Everywhere)
@@ -147,9 +148,107 @@ All code, models, artifacts, and figures are versioned in Git (`https://github.c
 - `reports/charts/dirichlet_and_silo_distributions.png`: Partition visualization
 - `reports/charts/convergence_iid_vs_non_iid.png`: Convergence history curves
 - `reports/charts/per_attack_recall.png`: Silo blindspots vs federated recall
-- `reports/charts/setup_comparison_metrics.png`: 12-setup comparison chart
+- `reports/charts/setup_comparison_metrics.png`: Main benchmark comparison chart
 - `reports/charts/communication_cost.png`: Cumulative bandwidth chart
-- `experiments/rigorous_comparison_table.csv`: 3-seed benchmark metrics
+- `reports/charts/quantization_compression.png`: Model size vs F1 trade-off
+- `reports/charts/poisoning_robustness.png`: Byzantine label-flip defense chart
+- `reports/charts/dp_epsilon_vs_f1.png`: Differential privacy budget epsilon trade-off curve
+- `reports/charts/web_attack_recall_per_round.png`: Web attack per-round learning dynamics
+- `experiments/rigorous_comparison_table.csv`: 5-seed benchmark metrics
 - `experiments/per_attack_recall.csv`: Per-attack recall breakdown
 - `experiments/scaling_privacy_comparison.csv`: Feature scaling privacy benchmark
+- `experiments/quantization_benchmark.csv`: FP32 vs FP16 vs INT8 compression benchmark
+- `experiments/robust_aggregation_benchmark.csv`: Byzantine poisoning defense benchmark
+- `experiments/dp_privacy_utility_tradeoff.csv`: DP-SGD epsilon-vs-utility benchmark
+- `experiments/web_attack_ablation_summary.csv`: Web Attack minority class ablation
 - `app/app.py`: Interactive Streamlit dashboard with real-time inference and academic evaluation UI.
+
+---
+
+## 9. Month 6: Advanced Security, Compression & Privacy Enhancements
+
+Month 6 fortifies the federated intrusion detection pipeline across three core operational dimensions: bandwidth compression via post-training quantization, Byzantine robustness against adversarial poisoning, and formal mathematical privacy guarantees via per-client Differential Privacy (DP-SGD). All experiments were evaluated across the 7,292 held-out test flows over 5 independent random seeds (`[42, 101, 777, 1234, 5678]`).
+
+### 9.1 Model Quantization & Bandwidth Efficiency
+
+In multi-tenant or bandwidth-constrained security deployments, transmitting floating-point neural network parameters every round incurs non-trivial network overhead. We benchmarked full-precision FP32 parameters against half-precision FP16 and dynamic 8-bit integer quantization (INT8):
+
+| Precision Format | Model Size (KB) | Bandwidth Reduction | Test F1-Score | Detection Recall | False Alarm Rate |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **FP32 (Baseline)** | 85.65 KB | 0.0% | 0.9898 $\pm$ 0.0004 | 0.9980 $\pm$ 0.0012 | 1.01% $\pm$ 0.08% |
+| **FP16 (Half Precision)** | 46.40 KB | **45.8%** | 0.9898 $\pm$ 0.0004 | 0.9980 $\pm$ 0.0012 | 1.01% $\pm$ 0.08% |
+| **INT8 (Dynamic Quantization)** | **32.88 KB** | **61.6%** | **0.9900 $\pm$ 0.0004** | **0.9979 $\pm$ 0.0010** | **0.98% $\pm$ 0.09%** |
+
+**Key Takeaways:**
+1. Dynamic INT8 quantization slashes model payload transmission size from **85.65 KB down to 32.88 KB (a 61.6% reduction)**.
+2. Across 15 communication rounds with 3 participating organizations, total upload/download bandwidth drops from 7.71 MB to **2.96 MB**.
+3. Crucially, detection utility is completely preserved: INT8 F1 is **0.9900 $\pm$ 0.0004** (identical to FP32's 0.9898 $\pm$ 0.0004 within variance), while false alarm rate remains minimal at 0.98%.
+
+---
+
+### 9.2 Byzantine Robustness: Defending Against Adversarial Label-Flipping
+
+To evaluate system resilience against compromised clients, we implemented a malicious threat model where 1 client conducts a complete label-flipping poisoning attack ($y \leftarrow 1 - y$), actively submitting poisoned gradient updates to degrade the global intrusion detection model. We evaluated three aggregation rules under 3 clients (33.3% malicious, representing near the theoretical breakdown limit of standard consensus) and 5 clients (20.0% malicious):
+
+| Setup | Total Clients | Malicious Ratio | Aggregator | Test F1-Score | Detection Recall | False Alarm Rate (FPR) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **No Attack** | 3 | 0.0% | FedAvg | 0.9888 $\pm$ 0.0019 | 0.9980 $\pm$ 0.0005 | 1.12% $\pm$ 0.23% |
+| **Label-Flip Attack** | 3 | 33.3% | FedAvg | 0.9738 $\pm$ 0.0078 | 0.9903 $\pm$ 0.0073 | **2.36% $\pm$ 0.70%** (peak 3.34%) |
+| **Label-Flip Attack** | 3 | 33.3% | **Coordinate Median** | **0.9860 $\pm$ 0.0021** | 0.9941 $\pm$ 0.0025 | **1.21% $\pm$ 0.23%** |
+| **Label-Flip Attack** | 3 | 33.3% | **Trimmed Mean** | **0.9860 $\pm$ 0.0021** | 0.9941 $\pm$ 0.0025 | **1.21% $\pm$ 0.23%** |
+| **No Attack** | 5 | 0.0% | FedAvg | 0.9871 $\pm$ 0.0009 | 0.9970 $\pm$ 0.0003 | 1.25% $\pm$ 0.12% |
+| **Label-Flip Attack** | 5 | 20.0% | FedAvg | 0.9793 $\pm$ 0.0040 | 0.9968 $\pm$ 0.0018 | **2.11% $\pm$ 0.51%** (peak 2.96%) |
+| **Label-Flip Attack** | 5 | 20.0% | **Coordinate Median** | **0.9870 $\pm$ 0.0011** | 0.9970 $\pm$ 0.0012 | **1.26% $\pm$ 0.18%** |
+| **Label-Flip Attack** | 5 | 20.0% | **Trimmed Mean** | **0.9869 $\pm$ 0.0012** | 0.9967 $\pm$ 0.0011 | **1.26% $\pm$ 0.17%** |
+
+**Key Takeaways:**
+1. Under standard FedAvg, a single malicious client causes false alarm rates to more than double (surging from 1.12% to 2.36% in the 3-client setup and from 1.25% to 2.11% in the 5-client setup). In individual seeds, FPR surged to 3.34%, rendering an enterprise NIDS alarm console unusable.
+2. **Robust Defense Success:** Both Coordinate-wise Median and Trimmed Mean effectively filter the contaminated parameters. Under 5 clients, Coordinate Median restores F1 to **0.9870 $\pm$ 0.0011** and suppresses false alarm rate back to **1.26% $\pm$ 0.18%**, matching the uncompromised baseline within 0.01 points.
+
+---
+
+### 9.3 Formal Differential Privacy via Opacus (DP-SGD)
+
+Standard Federated Learning shares model weights rather than raw packet payloads, but model updates can still leak membership information under gradient inversion attacks. To provide rigorous mathematical guarantees, we integrated **Opacus DP-SGD** directly into client local training.
+
+#### Architectural Adaptation: GroupNorm vs BatchNorm
+Differential privacy requires calculating per-sample gradient norms $g_i = \nabla_{\theta} \mathcal{L}(x_i, y_i)$. `BatchNorm1d` normalizes activations across the mini-batch, coupling samples and violating per-sample gradient independence. We refactored `NetSentryClassifier` to support `GroupNorm(num_groups=4, num_channels=hidden_dim)`. To guarantee scientific fairness, the **Non-DP baseline was executed with the exact same GroupNorm architecture and scaling parameters**.
+
+#### Privacy-Utility Tradeoff Benchmark ($\delta = 10^{-5}$, Clipping $C=1.0$)
+Target privacy parameter was fixed at $\delta = 10^{-5}$ (strictly satisfying $\delta \ll 1/N$ for $N=25,522$). We evaluated noise multipliers $\sigma \in \{0.5, 1.0, 2.0\}$ across all 5 seeds:
+
+| Configuration | Partition | DP Enabled | Noise Multiplier $\sigma$ | Privacy Budget $\epsilon$ | Test F1-Score | Recall | False Alarm Rate | DoS Recall | Web Attack Recall |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Non-DP Baseline (GroupNorm)** | IID | No | 0.0 | $\infty$ (Non-DP) | 0.9851 $\pm$ 0.0032 | 0.9994 $\pm$ 0.0005 | 1.61% $\pm$ 0.35% | 99.96% | 99.95% |
+| **DP-SGD ($\sigma=0.5$)** | IID | Yes | 0.5 | $\epsilon = 26.40$ | 0.9548 $\pm$ 0.0013 | 0.9322 $\pm$ 0.0015 | 1.11% $\pm$ 0.17% | 89.16% | 84.62% |
+| **DP-SGD ($\sigma=1.0$)** | IID | Yes | 1.0 | $\mathbf{\epsilon = 4.06}$ | **0.9486 $\pm$ 0.0020** | **0.9220 $\pm$ 0.0044** | **1.19% $\pm$ 0.18%** | 86.59% | 84.62% |
+| **DP-SGD ($\sigma=2.0$)** | IID | Yes | 2.0 | $\mathbf{\epsilon = 1.41}$ | **0.9340 $\pm$ 0.0064** | **0.8961 $\pm$ 0.0101** | **1.23% $\pm$ 0.10%** | 79.82% | 84.62% |
+| **Non-DP Baseline (GroupNorm)** | Silos | No | 0.0 | $\infty$ (Non-DP) | 0.9062 $\pm$ 0.0428 | 0.8400 $\pm$ 0.0796 | 0.53% $\pm$ 0.40% | 86.51% | 35.62% |
+| **DP-SGD ($\sigma=1.0$, FedProx)** | Silos | Yes | 1.0 | $\mathbf{\epsilon = 4.10}$ | **0.9384 $\pm$ 0.0015** | **0.8961 $\pm$ 0.0026** | **0.74% $\pm$ 0.07%** | 79.86% | **84.62%** |
+
+#### Scope of the Differential Privacy Guarantee
+> [!IMPORTANT]
+> **Privacy Guarantee Scope:**
+> The $(\epsilon, \delta)$-differential privacy guarantee provided by Opacus DP-SGD strictly bounds the probability that an adversary (such as an untrusted central aggregation server or an eavesdropper intercepting model weight updates) can infer the presence, absence, or specific network flow characteristics of any individual traffic flow in a client's local training database. It does not provide an empirical guarantee against downstream black-box model inversion via querying the deployed inference API.
+
+**Key Findings:**
+1. **Clean Privacy-Utility Frontier:** On the IID benchmark, increasing $\sigma$ from 0.5 to 2.0 produces a smooth privacy curve: $\epsilon$ falls from $26.40$ to $4.06$ to $1.41$, while test F1 declines gently from $0.9548$ to $0.9340$. At $\sigma=1.0$, a strict privacy budget of $\mathbf{\epsilon=4.06}$ is achieved at a minor utility penalty of only **3.6 points in F1**.
+2. **DP Clipping Stabilizes Extreme Silos:** In the extreme cross-silo partition under FedProx, DP-SGD with $\sigma=1.0$ achieves F1 **0.9384 $\pm$ 0.0015** with $\epsilon=4.10$. Interestingly, per-sample gradient clipping ($C=1.0$) suppresses outlier gradient spikes from the dominant DoS client, eliminating catastrophic oscillation and boosting Web Attack recall from **35.62% to 84.62%** while cutting cross-seed standard deviation from $\pm 0.0428$ down to $\pm 0.0015$.
+
+---
+
+### 9.4 Web Attack Minority Class Ablation & Learning Dynamics
+
+To rigorously isolate the mechanism behind minority attack detection under extreme cross-silo partitioning, we evaluated three distinct aggregation mechanisms across all 5 seeds:
+
+| Aggregation Strategy | Test F1-Score | Web Attack Recall | Standard Deviation of Recall |
+| :--- | :---: | :---: | :---: |
+| **FedAvg (Sample-Weighted $n_k/N$)** | 0.8627 $\pm$ 0.0538 | 46.48% $\pm$ 31.73% | High ($\pm 31.73\%$, fluctuates 0.0% to 85.1%) |
+| **FedAvg (Equal-Weighted $w_k = 1/K$)** | 0.8858 $\pm$ 0.0603 | **78.55% $\pm$ 14.20%** | Moderate ($\pm 14.20\%$, lifts Seed 777 to 71.6%) |
+| **FedProx ($\mu^*=1.0$, Sample-Weighted)** | **0.9219 $\pm$ 0.0251** | **84.71% $\pm$ 0.19%** | **Extremely Stable ($\pm 0.19\%$, 84.6% across all seeds)** |
+
+#### Learning vs. Forgetting Dynamics
+By tracking per-round Web Attack recall across all 15 rounds (`reports/charts/web_attack_recall_per_round.png`), we answered the core mechanistic question:
+- Under standard sample-weighted FedAvg, Web Attack features are **partially learned in early rounds (rounds 1–4) but subsequently overwritten** when Client A and Client B submit massive updates containing 83.3% of the attack gradient mass. In seeds with poor initial alignments (e.g. Seed 777), Web Attack recall collapsed to 0.0%.
+- Equal weighting ($1/K$) ensures Client C's update cannot be drowned out by sheer sample volume, recovering mean recall to **78.55%**.
+- FedProx proximal regularization ($\mu^*=1.0$) prevents the global model from oscillating in parameter space, achieving an astonishingly consistent **84.71% $\pm$ 0.19% recall** across every single evaluated seed.

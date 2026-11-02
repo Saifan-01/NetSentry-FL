@@ -1,4 +1,4 @@
-Paradigm,Privacy_Guarantee,F1,Recall,Precision,FPR
-Pooled QuantileTransformer (Simulation Baseline),Low (Requires pooled data or centralized quantiles),0.8497547926883638,0.7436597737026922,0.9911596463858554,0.003594840346796363
-Local QuantileTransformer (Strictly Decentralized),High (Zero raw data or quantile pooling),0.7899789276516038,0.6582130316035896,0.9877049180327869,0.00444068513427786
-Fixed Parameterless Normalization (log1p + Constant Bounds),"Complete (Zero data fitting, completely static)",0.696311268317332,0.537651190011705,0.9878136200716846,0.003594840346796363
+Paradigm,Privacy_Level,F1_Mean,F1_Std,Recall_Mean,Recall_Std,Precision_Mean,Precision_Std,FPR_Mean,FPR_Std,F1,Recall,Precision,False positive rate
+Pooled QuantileTransformer (Simulation Baseline),Low (Assumes pooled data),0.8521298621492702,0.060790578887651214,0.7517752633632462,0.0921676374679249,0.9919394005292375,0.00428303814822363,0.003298794671177839,0.0016842721718536586,0.8521 +/- 0.0608,0.7518 +/- 0.0922,0.9919 +/- 0.0043,0.0033 +/- 0.0017
+Local QuantileTransformer (Strictly Decentralized),High (Zero raw data or quantile pooling),0.842454042831441,0.03214460278872351,0.7379633242294187,0.04788336268665057,0.9836663471118067,0.003820860189646212,0.006597589342355678,0.001359943767461495,0.8425 +/- 0.0321,0.7380 +/- 0.0479,0.9837 +/- 0.0038,0.0066 +/- 0.0014
+Fixed Parameterless Normalization (log1p + Constant Bounds),"Complete (Zero fitting, 100% static)",0.8601804746459758,0.06539967820423868,0.7651190011705034,0.09595113230554404,0.9911023182569554,0.003220110098488752,0.003594840346796363,0.000982782832617657,0.8602 +/- 0.0654,0.7651 +/- 0.0960,0.9911 +/- 0.0032,0.0036 +/- 0.0010

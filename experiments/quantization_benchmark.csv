@@ -1,0 +1,4 @@
+Precision_Format,Model_Size_KB,Bandwidth_Savings,F1_Mean,F1_Std,Recall_Mean,Recall_Std,Precision_Mean,Precision_Std,FPR_Mean,FPR_Std,F1,Recall,Precision,False positive rate
+FP32 (Full Precision Baseline),85.65,0.0%,0.9898,0.0004,0.998,0.0012,0.9817,0.0014,0.0101,0.0008,0.9898 +/- 0.0004,0.9980 +/- 0.0012,0.9817 +/- 0.0014,0.0101 +/- 0.0008
+FP16 (Half Precision),46.4,45.8%,0.9898,0.0004,0.998,0.0012,0.9817,0.0014,0.0101,0.0008,0.9898 +/- 0.0004,0.9980 +/- 0.0012,0.9817 +/- 0.0014,0.0101 +/- 0.0008
+INT8 (Dynamic Integer Quantization),32.88,61.6%,0.99,0.0004,0.9979,0.001,0.9822,0.0015,0.0098,0.0009,0.9900 +/- 0.0004,0.9979 +/- 0.0010,0.9822 +/- 0.0015,0.0098 +/- 0.0009

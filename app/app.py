@@ -49,7 +49,8 @@ nav = st.sidebar.radio(
     "Navigation Menu",
     [
         "Live Traffic Classifier",
-        "3-Seed Benchmark Comparison",
+        "5-Seed Benchmark Comparison",
+        "Month 6: Security, Privacy & Quantization",
         "Traditional Centralized Baselines",
         "Convergence and Cost Charts",
         "System Architecture"
@@ -220,12 +221,12 @@ if nav == "Live Traffic Classifier":
             mime="text/csv"
         )
 
-# PAGE 2: 3-SEED BENCHMARK COMPARISON
-elif nav == "3-Seed Benchmark Comparison":
-    st.title("The Definitive 3-Seed Comparison Table (Mean +/- Spread)")
+# PAGE 2: 5-SEED BENCHMARK COMPARISON
+elif nav in ["5-Seed Benchmark Comparison", "3-Seed Benchmark Comparison"]:
+    st.title("The Definitive 5-Seed Comparison Table (Mean +/- Spread)")
     st.markdown(
         "All configurations are evaluated on the exact same **7,292 real held-out test flows** (20% split) "
-        "and averaged over **3 distinct seeds (42, 101, 777)** with reported standard deviations."
+        "and averaged over **5 distinct random seeds (42, 101, 777, 1234, 5678)** with strict final-round evaluation (R=15)."
     )
     
     comp_df = pd.read_csv(EXPERIMENTS_DIR / "rigorous_comparison_table.csv")
@@ -238,14 +239,14 @@ elif nav == "3-Seed Benchmark Comparison":
     
     st.markdown("### Critical Research Insights:")
     st.markdown("""
-    - **Local Blindspots in Isolated Silos:** Clients trained only on localized threats fail completely when exposed to new attacks. Client A (trained on DoS only) achieves **0.00% recall on PortScan and 1.48% on Web Attacks**. Client B (trained on PortScan only) achieves **0.00% recall on DoS and Web Attacks**.
-    - **Federated Generalization:** The federated model aggregates knowledge without sharing raw flows, enabling all participants to detect DoS, PortScan, and Web Attacks simultaneously.
-    - **FedProx Overcomes Extreme Client Drift:** Under extreme silos, standard FedAvg drops to **73.90% recall (0.8437 F1)** due to client drift. FedProx (mu=0.01) constrains local updates to the consensus manifold, boosting performance to **88.65% recall (0.9352 F1)** (+9.15% gain).
-    - **Protection for Minority Classes:** For Web Attacks (the smallest attack class), FedAvg achieves only 35.82% recall with extreme variance (+/- 0.4576), while FedProx achieves **87.65% recall with stable +/- 0.0207 variance**.
+    - **Local Blindspots in Isolated Silos:** Clients trained only on localized threats fail completely when exposed to new attacks. Client B (PortScan silo) achieves **0.00% recall on DoS and Web Attacks**. Client A (DoS silo) achieves **1.16% recall on PortScan**.
+    - **Federated Generalization:** Federated IID **matches centralized performance** (0.9894 vs 0.9883 F1) and eliminates local blindspots across all attack categories.
+    - **Extreme Silo Dynamics:** On extreme disjoint silos, standard FedAvg achieves F1 0.8182 +/- 0.0856. FedProx (mu*=1.0) improves the mean F1 to **0.8750 +/- 0.0559** and recall to **78.99% +/- 8.75%**, winning in **4 out of 5 seeds** (paired differences: -0.0302, +0.2096, +0.0330, +0.0637, +0.0080).
+    - **Dirichlet Skew Finding:** On continuous Dirichlet label skew (alpha=0.1), performance differences between FedAvg (0.9519 +/- 0.0336) and FedProx (0.9417 +/- 0.0529) fall within mutual standard error bounds, indicating no statistically clear difference on continuous skew.
     """)
     
     st.divider()
-    st.subheader("Per-Attack-Type Recall Breakdown (Mean +/- Spread, 3 Seeds)")
+    st.subheader("Per-Attack-Type Recall Breakdown (Mean +/- Spread, 5 Seeds)")
     if (EXPERIMENTS_DIR / "per_attack_recall.csv").exists():
         att_df = pd.read_csv(EXPERIMENTS_DIR / "per_attack_recall.csv")
         st.dataframe(
@@ -254,7 +255,90 @@ elif nav == "3-Seed Benchmark Comparison":
             hide_index=True
         )
 
-# PAGE 3: TRADITIONAL CENTRALIZED BASELINES
+# PAGE 3: MONTH 6 ADVANCED BENCHMARKS
+elif nav == "Month 6: Security, Privacy & Quantization":
+    st.title("Month 6: Advanced Security, Privacy & Compression")
+    st.markdown(
+        "Evaluations spanning bandwidth reduction via quantization, Byzantine robustness against label poisoning, "
+        "and formal mathematical Differential Privacy (DP-SGD via Opacus) across 5 independent seeds."
+    )
+    
+    m6_tab1, m6_tab2, m6_tab3, m6_tab4 = st.tabs([
+        "1. Model Quantization",
+        "2. Byzantine Defense",
+        "3. Differential Privacy (DP-SGD)",
+        "4. Minority Web Attack Ablation"
+    ])
+    
+    with m6_tab1:
+        st.subheader("Model Quantization & Bandwidth Savings (5 Seeds)")
+        st.markdown(
+            "Compares full-precision FP32 parameters against half-precision FP16 and dynamic 8-bit integer quantization (INT8):"
+        )
+        if (EXPERIMENTS_DIR / "quantization_benchmark.csv").exists():
+            q_df = pd.read_csv(EXPERIMENTS_DIR / "quantization_benchmark.csv")
+            st.dataframe(
+                q_df[["Precision_Format", "Model_Size_KB", "Bandwidth_Savings", "F1", "Recall", "False positive rate"]],
+                use_container_width=True,
+                hide_index=True
+            )
+        if (CHARTS_DIR / "quantization_compression.png").exists():
+            st.image(str(CHARTS_DIR / "quantization_compression.png"), use_container_width=True)
+        st.caption("Result: INT8 dynamic quantization slashes bandwidth payload by 61.6% with 0.00 degradation in test F1.")
+        
+    with m6_tab2:
+        st.subheader("Byzantine Robustness against 1 Label-Flipping Malicious Client")
+        st.markdown(
+            "Threat Model: 1 compromised client actively inverts binary labels (0 <-> 1). Evaluated on 3 clients (33.3% malicious) and 5 clients (20.0% malicious):"
+        )
+        if (EXPERIMENTS_DIR / "robust_aggregation_benchmark.csv").exists():
+            r_df = pd.read_csv(EXPERIMENTS_DIR / "robust_aggregation_benchmark.csv")
+            st.dataframe(
+                r_df[["Experiment", "Malicious_Ratio", "Aggregator", "F1", "Recall", "False_Alarm_Rate"]],
+                use_container_width=True,
+                hide_index=True
+            )
+        if (CHARTS_DIR / "poisoning_robustness.png").exists():
+            st.image(str(CHARTS_DIR / "poisoning_robustness.png"), use_container_width=True)
+        st.caption("Coordinate Median and Trimmed Mean suppress false alarms back to ~1.2% and completely restore F1-score.")
+        
+    with m6_tab3:
+        st.subheader("Differential Privacy: Privacy-Utility Tradeoff (Opacus DP-SGD, delta=1e-5)")
+        st.markdown(
+            "Per-client DP-SGD with clipping norm C=1.0 and noise multiplier sweep sigma in {0.5, 1.0, 2.0} using GroupNorm MLP:"
+        )
+        if (EXPERIMENTS_DIR / "dp_privacy_utility_tradeoff.csv").exists():
+            dp_df = pd.read_csv(EXPERIMENTS_DIR / "dp_privacy_utility_tradeoff.csv")
+            st.dataframe(
+                dp_df[["Configuration", "Epsilon_Display", "F1", "Recall", "False_Alarm_Rate", "DoS_Recall_Mean", "Web_Attack_Recall_Mean"]],
+                use_container_width=True,
+                hide_index=True
+            )
+        if (CHARTS_DIR / "dp_epsilon_vs_f1.png").exists():
+            st.image(str(CHARTS_DIR / "dp_epsilon_vs_f1.png"), use_container_width=True)
+        st.info("Privacy Guarantee Scope: Bounds the probability of an untrusted central server or snooping network observer reconstructing private training flows.")
+        
+    with m6_tab4:
+        st.subheader("Web Attack Minority Class Ablation & Per-Round Dynamics")
+        st.markdown(
+            "Client C holds only 1,500 attack flows out of 8,969 total attack flows (16.7% of attacks in training). "
+            "Under standard sample-weighted FedAvg, updates are diluted. Equal weighting (1/K) and FedProx stabilize learning:"
+        )
+        if (EXPERIMENTS_DIR / "web_attack_ablation_summary.csv").exists():
+            w_df = pd.read_csv(EXPERIMENTS_DIR / "web_attack_ablation_summary.csv")
+            st.dataframe(
+                w_df[["Strategy", "Test_F1_Display", "Web_Recall_Display"]].rename(columns={
+                    "Test_F1_Display": "Test F1-Score (Mean +/- Std)",
+                    "Web_Recall_Display": "Web Attack Recall (Mean +/- Std)"
+                }),
+                use_container_width=True,
+                hide_index=True
+            )
+        if (CHARTS_DIR / "web_attack_recall_per_round.png").exists():
+            st.image(str(CHARTS_DIR / "web_attack_recall_per_round.png"), use_container_width=True)
+        st.caption("Per-round tracking reveals FedAvg suffers from early learning followed by majority update overwriting; FedProx achieves 84.71% +/- 0.19% recall.")
+
+# PAGE 4: TRADITIONAL CENTRALIZED BASELINES
 elif nav == "Traditional Centralized Baselines":
     st.title("Traditional Centralized Baseline Models")
     st.markdown("Baseline evaluation of classical machine learning and deep learning models trained on pooled data:")
@@ -283,12 +367,14 @@ elif nav == "Traditional Centralized Baselines":
 elif nav == "Convergence and Cost Charts":
     st.title("Experimental Performance and Convergence Charts")
     
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         "1. Federated Convergence",
         "2. Per-Attack Recall",
         "3. Metrics Comparison",
         "4. Client Partitions",
-        "5. Communication Footprint"
+        "5. Quantization & Bandwidth",
+        "6. Poisoning Robustness",
+        "7. DP Tradeoff Curve"
     ])
     
     with tab1:
@@ -312,12 +398,26 @@ elif nav == "Convergence and Cost Charts":
             st.caption("Comparison of Extreme Silo partitions vs. Dirichlet continuous label skew (alpha = 0.5 and alpha = 0.1).")
         
     with tab5:
-        st.subheader("Communication Overhead across Communication Rounds")
+        st.subheader("Communication Overhead and Quantization Compression")
+        if (CHARTS_DIR / "quantization_compression.png").exists():
+            st.image(str(CHARTS_DIR / "quantization_compression.png"), use_container_width=True)
         st.image(str(CHARTS_DIR / "communication_cost.png"), use_container_width=True)
         
         st.markdown("#### Cumulative Communication Overhead (KB)")
         comm_df = pd.read_csv(EXPERIMENTS_DIR / "communication_overhead.csv")
         st.dataframe(comm_df, use_container_width=True, hide_index=True)
+
+    with tab6:
+        st.subheader("Byzantine Robustness against Poisoning (Label Flipping)")
+        if (CHARTS_DIR / "poisoning_robustness.png").exists():
+            st.image(str(CHARTS_DIR / "poisoning_robustness.png"), use_container_width=True)
+        st.caption("Coordinate Median and Trimmed Mean robust aggregators reject poisoned client updates.")
+
+    with tab7:
+        st.subheader("Differential Privacy Budget Tradeoff (Epsilon vs. F1 & Recall)")
+        if (CHARTS_DIR / "dp_epsilon_vs_f1.png").exists():
+            st.image(str(CHARTS_DIR / "dp_epsilon_vs_f1.png"), use_container_width=True)
+        st.caption("Evaluated at delta = 1e-5 across noise multipliers sigma in {0.5, 1.0, 2.0}.")
 
 # PAGE 5: SYSTEM ARCHITECTURE
 elif nav == "System Architecture":
