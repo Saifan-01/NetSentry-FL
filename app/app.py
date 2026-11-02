@@ -50,7 +50,7 @@ nav = st.sidebar.radio(
     [
         "Live Traffic Classifier",
         "5-Seed Benchmark Comparison",
-        "Month 6: Security, Privacy & Quantization",
+        "Security, Privacy & Quantization",
         "Traditional Centralized Baselines",
         "Convergence and Cost Charts",
         "System Architecture"
@@ -255,9 +255,9 @@ elif nav in ["5-Seed Benchmark Comparison", "3-Seed Benchmark Comparison"]:
             hide_index=True
         )
 
-# PAGE 3: MONTH 6 ADVANCED BENCHMARKS
-elif nav == "Month 6: Security, Privacy & Quantization":
-    st.title("Month 6: Advanced Security, Privacy & Compression")
+# PAGE 3: ADVANCED SECURITY, PRIVACY & QUANTIZATION BENCHMARKS
+elif nav == "Security, Privacy & Quantization":
+    st.title("Advanced Security, Privacy & Compression")
     st.markdown(
         "Evaluations spanning bandwidth reduction via quantization, Byzantine robustness against label poisoning, "
         "and formal mathematical Differential Privacy (DP-SGD via Opacus) across 5 independent seeds."
