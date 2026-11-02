@@ -1,20 +1,26 @@
 """
-NetSentry-FL: Rigorous Real CIC-IDS2017 3-Seed Multi-Attack Evaluation Harness
-Uses:
-- Real CIC-IDS2017 curated traffic (Deduplicated, zero-leakage RobustScaler fitted strictly on train).
-- Extreme Non-IID Partition by attack category:
-  * Client A (Organization A): Sees ONLY real DoS attacks + Benign
-  * Client B (Organization B): Sees ONLY real PortScan attacks + Benign
-  * Client C (Organization C): Sees ONLY real Web Attacks + Benign
-- Runs 15 Federated Communication Rounds with Flower FedAvg.
-- Evaluates across 3 random seeds (42, 101, 777).
-- Computes Precision, Recall, F1, PR-AUC, False Positive Rate (FPR),
-  Per-Attack Recall across all attack categories, and Communication Overhead.
+NetSentry-FL: Rigorous 3-Seed Multi-Attack Evaluation Harness on Real CIC-IDS2017
+Evaluates:
+1. Centralized (MLP)
+2. Local-only (Client A - DoS Silo)
+3. Local-only (Client B - PortScan Silo)
+4. Local-only (Client C - Web Attack Silo)
+5. Federated (IID - FedAvg)
+6. Federated (Non-IID - FedAvg)
+
+Features:
+- Evaluated on 7,292 held-out test flows (20% held-out test partition).
+- Averaged over 3 distinct seeds (42, 101, 777).
+- Computes both Mean and Spread (Standard Deviation) for Precision, Recall, F1, PR-AUC, FPR.
+- Computes Per-Attack Recall (DoS, PortScan, Web Attack).
+- Evaluates Communication Cost Extension: Bytes per round and rounds to target F1.
 """
 
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
 import numpy as np
 import pandas as pd
@@ -28,17 +34,16 @@ from src.models.ids_net import NetSentryClassifier, get_model_parameters, set_mo
 from src.federated.client import NetSentryClient
 from src.federated.run_federated_experiment import aggregate_fedavg
 
-EXPERIMENTS_DIR = Path("experiments")
-PROCESSED_DIR = Path("data/processed")
-REPORTS_DIR = Path("reports")
+EXPERIMENTS_DIR = PROJECT_ROOT / "experiments"
+PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 EXPERIMENTS_DIR.mkdir(parents=True, exist_ok=True)
-REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
-def create_extreme_non_iid_silos(X_train, train_meta, seed: int = 42):
+def create_extreme_non_iid_silos(X_train: np.ndarray, train_meta: pd.DataFrame, seed: int = 42):
     """
-    Client A: Sees ONLY DoS + Benign
-    Client B: Sees ONLY PortScan + Benign
-    Client C: Sees ONLY Web Attack + Benign
+    Creates realistic extreme attack silos:
+    - Client 0 (Client A): Sees ONLY DoS attacks + Benign
+    - Client 1 (Client B): Sees ONLY PortScan attacks + Benign
+    - Client 2 (Client C): Sees ONLY Web Attacks + Benign
     Benign flows are evenly distributed across the 3 clients.
     """
     np.random.seed(seed)
@@ -69,7 +74,7 @@ def create_extreme_non_iid_silos(X_train, train_meta, seed: int = 42):
         
     return client_data
 
-def evaluate_metrics(y_true, y_prob):
+def evaluate_metrics(y_true: np.ndarray, y_prob: np.ndarray):
     y_pred = (y_prob >= 0.5).astype(int)
     cm = confusion_matrix(y_true, y_pred)
     tn, fp, fn, tp = cm.ravel()
@@ -87,15 +92,16 @@ def evaluate_metrics(y_true, y_prob):
         "recall": recall,
         "f1": f1,
         "pr_auc": pr_auc,
-        "fpr": fpr
+        "fpr": fpr,
+        "cm": cm
     }
 
-def run_real_cicids_evaluation():
+def run_3seed_federated_evaluation():
     seeds = [42, 101, 777]
     num_rounds = 15
     local_epochs = 2
     
-    # Load Real Preprocessed Data
+    # Load 70/10/20 data splits
     X_train = np.load(PROCESSED_DIR / "X_train.npy").astype(np.float32)
     y_train = np.load(PROCESSED_DIR / "y_train.npy").astype(np.float32)
     X_test = np.load(PROCESSED_DIR / "X_test.npy").astype(np.float32)
@@ -134,7 +140,7 @@ def run_real_cicids_evaluation():
         loader_cent = DataLoader(TensorDataset(torch.from_numpy(X_train), torch.from_numpy(y_train)), batch_size=128, shuffle=True)
         
         cent_model.train()
-        for epoch in range(12):
+        for epoch in range(15):
             for bx, by in loader_cent:
                 opt_cent.zero_grad()
                 crit_cent(cent_model(bx), by).backward()
@@ -166,7 +172,6 @@ def run_real_cicids_evaluation():
                 batch_size=64, shuffle=True
             )
             l_model.train()
-            # 8 epochs for local model
             for _ in range(8):
                 for bx, by in l_loader:
                     l_opt.zero_grad()
@@ -227,7 +232,7 @@ def run_real_cicids_evaluation():
             })
         all_runs["Federated, non-IID"].append(evaluate_metrics(y_test, fn_probs))
 
-        # Per-Attack Recall Evaluation recorded for Seed 42
+        # Per-Attack Recall recorded for Seed 42
         if seed == 42:
             preds_dict = {
                 "Centralized (MLP)": (cent_probs >= 0.5).astype(int),
@@ -248,42 +253,90 @@ def run_real_cicids_evaluation():
                         "Total_Flows": len(idx_cat)
                     })
 
-    # Compute Summary Comparison Table with Mean across 3 Seeds
+    # Save summary table with BOTH Mean and Spread (std dev)
     summary_rows = []
     for setup in setups:
         runs = all_runs[setup]
+        p_vals = [r["precision"] for r in runs]
+        r_vals = [r["recall"] for r in runs]
+        f1_vals = [r["f1"] for r in runs]
+        pr_vals = [r["pr_auc"] for r in runs]
+        fpr_vals = [r["fpr"] for r in runs]
+        
         summary_rows.append({
             "Setup": setup,
-            "Precision": round(float(np.mean([r["precision"] for r in runs])), 4),
-            "Recall": round(float(np.mean([r["recall"] for r in runs])), 4),
-            "F1": round(float(np.mean([r["f1"] for r in runs])), 4),
-            "PR-AUC": round(float(np.mean([r["pr_auc"] for r in runs])), 4),
-            "False positive rate": round(float(np.mean([r["fpr"] for r in runs])), 4)
+            "Precision_Mean": round(float(np.mean(p_vals)), 4),
+            "Precision_Std": round(float(np.std(p_vals)), 4),
+            "Recall_Mean": round(float(np.mean(r_vals)), 4),
+            "Recall_Std": round(float(np.std(r_vals)), 4),
+            "F1_Mean": round(float(np.mean(f1_vals)), 4),
+            "F1_Std": round(float(np.std(f1_vals)), 4),
+            "PR_AUC_Mean": round(float(np.mean(pr_vals)), 4),
+            "PR_AUC_Std": round(float(np.std(pr_vals)), 4),
+            "FPR_Mean": round(float(np.mean(fpr_vals)), 4),
+            "FPR_Std": round(float(np.std(fpr_vals)), 4),
+            # Formatted presentation strings (e.g. 0.9268 +/- 0.0081)
+            "Precision": f"{np.mean(p_vals):.4f} +/- {np.std(p_vals):.4f}",
+            "Recall": f"{np.mean(r_vals):.4f} +/- {np.std(r_vals):.4f}",
+            "F1": f"{np.mean(f1_vals):.4f} +/- {np.std(f1_vals):.4f}",
+            "PR-AUC": f"{np.mean(pr_vals):.4f} +/- {np.std(pr_vals):.4f}",
+            "False positive rate": f"{np.mean(fpr_vals):.4f} +/- {np.std(fpr_vals):.4f}"
         })
         
     summary_df = pd.DataFrame(summary_rows)
     summary_df.to_csv(EXPERIMENTS_DIR / "rigorous_comparison_table.csv", index=False)
     
     # Save Convergence & Per-Attack Data
-    pd.DataFrame(convergence_records).to_csv(EXPERIMENTS_DIR / "convergence_history.csv", index=False)
-    pd.DataFrame(per_attack_records).to_csv(EXPERIMENTS_DIR / "per_attack_recall.csv", index=False)
+    conv_df = pd.DataFrame(convergence_records)
+    conv_df.to_csv(EXPERIMENTS_DIR / "convergence_history.csv", index=False)
     
-    # Save Communication Overhead
-    comm_df = pd.DataFrame([
-        {"Round": r, "Per_Client_Uplink_KB": round(param_bytes / 1024, 2), "Total_Network_Traffic_KB": round(3 * 2 * (param_bytes / 1024) * r, 2)}
-        for r in range(1, num_rounds + 1)
-    ])
+    att_df = pd.DataFrame(per_attack_records)
+    att_df.to_csv(EXPERIMENTS_DIR / "per_attack_recall.csv", index=False)
+    
+    # Communication cost extension (bytes per round & rounds to target F1)
+    comm_rows = []
+    for r in range(1, num_rounds + 1):
+        # 3 clients * 2 transmissions (uplink + downlink) * model size in KB
+        cum_kb = round(3 * 2 * (param_bytes / 1024) * r, 2)
+        comm_rows.append({
+            "Round": r,
+            "Per_Client_Uplink_KB": round(param_bytes / 1024, 2),
+            "Total_Network_Traffic_KB": cum_kb
+        })
+    comm_df = pd.DataFrame(comm_rows)
     comm_df.to_csv(EXPERIMENTS_DIR / "communication_overhead.csv", index=False)
-
-    # Save models for Streamlit app
+    
+    # Rounds to reach target F1 thresholds (0.20, 0.30)
+    target_f1_records = []
+    for setup in ["Federated, IID", "Federated, non-IID"]:
+        sub_conv = conv_df[conv_df["setup"] == setup]
+        mean_by_round = sub_conv.groupby("round")["f1"].mean()
+        
+        for threshold in [0.15, 0.20, 0.30]:
+            reached_rounds = mean_by_round[mean_by_round >= threshold].index
+            first_round = int(reached_rounds[0]) if len(reached_rounds) > 0 else -1
+            target_f1_records.append({
+                "Setup": setup,
+                "Target_F1_Threshold": threshold,
+                "Rounds_Required": first_round if first_round != -1 else "Not Reached in 15 Rounds",
+                "Total_Bandwidth_KB": round(3 * 2 * (param_bytes / 1024) * first_round, 2) if first_round != -1 else "N/A"
+            })
+    target_f1_df = pd.DataFrame(target_f1_records)
+    target_f1_df.to_csv(EXPERIMENTS_DIR / "rounds_to_target_f1.csv", index=False)
+    
+    # Save final models for the Streamlit demo
     torch.save(fed_non_iid_model.state_dict(), EXPERIMENTS_DIR / "global_federated_model.pth")
     torch.save(cent_model.state_dict(), EXPERIMENTS_DIR / "centralized_model.pth")
 
-    print("\n" + "="*85)
-    print("        DEFINITIVE REAL CIC-IDS2017 3-SEED COMPARISON TABLE (N=9,115 TEST FLOWS)     ")
-    print("="*85)
-    print(summary_df.to_string(index=False))
-    print("="*85 + "\n")
+    print("\n" + "="*95)
+    print("      DEFINITIVE REAL CIC-IDS2017 3-SEED COMPARISON TABLE WITH MEAN AND SPREAD        ")
+    print("="*95)
+    print(summary_df[["Setup", "Precision", "Recall", "F1", "PR-AUC", "False positive rate"]].to_string(index=False))
+    print("="*95 + "\n")
+    
+    print("[*] Rounds to Target F1 Analysis (Communication Extension):")
+    print(target_f1_df.to_string(index=False))
+    print("\n")
 
 if __name__ == "__main__":
-    run_real_cicids_evaluation()
+    run_3seed_federated_evaluation()

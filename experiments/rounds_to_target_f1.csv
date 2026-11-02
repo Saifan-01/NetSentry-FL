@@ -1,0 +1,7 @@
+Setup,Target_F1_Threshold,Rounds_Required,Total_Bandwidth_KB
+"Federated, IID",0.15,1,460.52
+"Federated, IID",0.2,1,460.52
+"Federated, IID",0.3,1,460.52
+"Federated, non-IID",0.15,1,460.52
+"Federated, non-IID",0.2,1,460.52
+"Federated, non-IID",0.3,1,460.52

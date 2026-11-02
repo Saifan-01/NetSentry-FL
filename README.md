@@ -6,11 +6,11 @@
 [![Streamlit](https://img.shields.io/badge/Streamlit-Dashboard-ff4b4b.svg)](https://streamlit.io/)
 [![Dataset](https://img.shields.io/badge/Dataset-Real%20CIC--IDS2017-green.svg)](https://www.unb.ca/cic/datasets/ids-2017.html)
 
-NetSentry-FL is an end-to-end Federated Learning framework for Network Intrusion Detection Systems (NIDS) evaluated on the real **Canadian Institute for Cybersecurity (CIC-IDS2017)** benchmark dataset. It allows multiple simulated organizations (Clients A, B, and C) to collaborate and train a joint deep neural network using **Flower FedAvg** without exchanging raw network flow records.
+NetSentry-FL is an end-to-end Federated Learning framework for Network Intrusion Detection Systems (NIDS) evaluated on the real **Canadian Institute for Cybersecurity (CIC-IDS2017)** benchmark dataset. It simulates three collaborative organizations (Clients A, B, and C) training a shared deep neural network using **Flower FedAvg** without exchanging raw network flow records.
 
 ---
 
-## 🏛️ System Architecture
+## System Architecture
 
 ```
                     ┌──────────────────────────────────────────────┐
@@ -33,22 +33,32 @@ NetSentry-FL is an end-to-end Federated Learning framework for Network Intrusion
 
 ---
 
-## 📊 The Main Result: Real CIC-IDS2017 3-Seed Comparison Table
+## The Main Result: Real CIC-IDS2017 3-Seed Comparison Table
 
-All experiments are evaluated on the exact same **9,115 real held-out test flows** and averaged over **3 distinct seeds (42, 101, 777)**:
+All experiments are evaluated on the exact same **7,292 real held-out test flows** (20% held-out test partition) and averaged over **3 distinct seeds (42, 101, 777)** with reported standard deviations:
 
-| Setup | Precision | Recall | F1 | PR-AUC | False Positive Rate |
+| Setup | Precision | Recall | F1 | PR-AUC | False Positive Rate (FPR) |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Centralized (MLP)** | 0.9268 | 0.2810 | 0.4311 | 0.6817 | 0.0123 (1.2%) |
-| **Local-only (Client A - DoS)** | 0.9371 | 0.2800 | 0.4312 | 0.5484 | 0.0103 (1.0%) |
-| **Local-only (Client B - PortScan)** | 0.3177 | 0.7059 | 0.4381 | 0.5835 | **0.8215 (82.1%)** |
-| **Local-only (Client C - Web Attack)**| 0.3176 | 0.7059 | 0.4381 | 0.4523 | **0.8217 (82.2%)** |
-| **Federated, IID** | **0.9770** | 0.2190 | 0.3560 | 0.6831 | **0.0028 (0.28%)** |
-| **Federated, non-IID** | **0.9704** | 0.1143 | 0.1956 | **0.6977** | **0.0015 (0.15%)** |
+| **Centralized (MLP)** | 0.9503 $\pm$ 0.0120 | 0.2743 $\pm$ 0.0047 | 0.4256 $\pm$ 0.0051 | 0.6842 $\pm$ 0.0112 | 0.0078 $\pm$ 0.0021 (0.78%) |
+| **Local-only (Client A - DoS)** | 0.9232 $\pm$ 0.0117 | 0.2775 $\pm$ 0.0018 | 0.4268 $\pm$ 0.0013 | 0.5529 $\pm$ 0.0024 | 0.0125 $\pm$ 0.0021 (1.25%) |
+| **Local-only (Client B - PortScan)** | 0.3187 $\pm$ 0.0001 | 0.7096 $\pm$ 0.0004 | 0.4398 $\pm$ 0.0002 | 0.6085 $\pm$ 0.0095 | **0.8222 $\pm$ 0.0000 (82.22%)** |
+| **Local-only (Client C - Web Attack)**| 0.3189 $\pm$ 0.0002 | 0.7096 $\pm$ 0.0004 | 0.4400 $\pm$ 0.0002 | 0.4416 $\pm$ 0.0070 | **0.8215 $\pm$ 0.0010 (82.15%)** |
+| **Federated, IID** | **0.9635 $\pm$ 0.0090** | 0.2731 $\pm$ 0.0048 | 0.4255 $\pm$ 0.0050 | 0.6848 $\pm$ 0.0037 | **0.0056 $\pm$ 0.0015 (0.56%)** |
+| **Federated, non-IID** | 0.6111 $\pm$ 0.4374 | 0.0009 $\pm$ 0.0008 | 0.0018 $\pm$ 0.0016 | 0.6609 $\pm$ 0.0848 | **0.0001 $\pm$ 0.0001 (0.01%)** |
 
 ---
 
-## 🚀 Quickstart & Reproducibility
+## Centralized Baseline Models (Pooled Data)
+
+| Model | Accuracy | Precision | Recall | F1-Score | PR-AUC | False Alarm Rate (FPR) |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Logistic Regression** | 63.00% | 47.36% | 47.17% | 0.4726 | 0.6533 | 28.42% |
+| **Random Forest (100 Trees)** | 99.81% | 99.84% | 99.61% | 0.9973 | 1.0000 | 0.08% |
+| **Centralized PyTorch MLP** | 74.18% | 95.95% | 27.70% | 0.4299 | 0.6920 | 0.63% |
+
+---
+
+## Quickstart & Reproducibility
 
 ### 1. Installation
 ```bash
@@ -57,7 +67,7 @@ cd NetSentry-FL
 pip install -r requirements.txt
 ```
 
-### 2. Dataset Preparation (Deduplication & Preprocessing)
+### 2. Dataset Curation (Deduplication & 70/10/20 Stratified Split)
 ```bash
 python src/data/curate_real_cicids2017.py
 ```
@@ -65,23 +75,27 @@ python src/data/curate_real_cicids2017.py
 ### 3. Run Centralized Baselines
 ```bash
 python src/models/baseline_classifiers.py
-python src/models/train_centralized_pytorch.py
 ```
 
-### 4. Run the 3-Seed Federated Experiments & Generate Visualizations
+### 4. Run 3-Seed Federated Experiments & Generate Visualizations
 ```bash
 python src/models/evaluate_real_cicids.py
 python src/utils/generate_charts.py
 ```
 
-### 5. Launch the Interactive Streamlit Demo
+### 5. Run Automated Unit Tests
+```bash
+python -m unittest discover tests
+```
+
+### 6. Launch the Interactive Streamlit Demo
 ```bash
 streamlit run app/app.py
 ```
 
 ---
 
-## 📂 Project Organization
+## Project Structure
 ```
 NetSentry-FL/
 ├── app/
@@ -89,18 +103,21 @@ NetSentry-FL/
 ├── configs/                        # Hyperparameter configurations
 ├── data/
 │   ├── raw/                        # Real CIC-IDS2017 flow data parquets & curated CSV
-│   └── processed/                  # Normalized, leak-free splits
+│   ├── processed/                  # Normalized, leak-free 70/10/20 splits
+│   └── demo_samples/               # Pre-packaged ready-to-test flow CSVs
 ├── docs/                           # Theoretical notes & Phase 1 documentation
 ├── experiments/                    # Saved evaluation CSVs and model checkpoints
 ├── reports/
-│   ├── charts/                     # High-res publication evaluation charts
+│   ├── charts/                     # Publication evaluation charts (PNG)
+│   ├── execution_and_fix_log.md    # Detailed execution and research changelog
 │   ├── research_report.md          # 10-15 page formal technical report
 │   └── presentation_slides.md      # 10-slide viva/presentation defense
 ├── src/
 │   ├── data/                       # Ingestion, cleaning, deduplication, and preprocessing
-│   ├── models/                     # PyTorch NetSentryClassifier & 3-seed evaluator
+│   ├── models/                     # PyTorch NetSentryClassifier, baselines & 3-seed evaluator
 │   ├── federated/                  # Flower NumPyClient and FedAvg simulation runner
 │   └── utils/                      # Publication chart generator
+├── tests/                          # Automated unit tests for preprocessing & partitioner
 ├── README.md
 └── requirements.txt
 ```
