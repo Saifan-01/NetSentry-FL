@@ -3,7 +3,7 @@ NetSentry-FL: Centralized Baseline Classifiers on Real CIC-IDS2017
 Trains and evaluates conventional ML and Deep Learning models on the 70/10/20 split:
 1. Logistic Regression (Linear baseline)
 2. Random Forest (Ensemble non-linear baseline)
-3. Centralized PyTorch MLP (Deep Learning baseline)
+3. Centralized PyTorch MLP (Deep Learning baseline with validation-based early stopping)
 """
 
 import sys
@@ -69,8 +69,8 @@ def evaluate_predictions(y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.ndar
     print(f"  Evaluation Results: {model_name}")
     print(f"========================================================")
     print(f"  Accuracy:          {acc * 100:.2f}%")
-    print(f"  Precision:         {prec * 100:.2f}% (Attack precision)")
-    print(f"  Recall:            {rec * 100:.2f}% (Attack detection rate)")
+    print(f"  Precision (PPV):   {prec * 100:.2f}% (Attack precision)")
+    print(f"  Recall (TPR):      {rec * 100:.2f}% (Attack detection rate)")
     print(f"  F1-Score:          {f1:.4f}")
     print(f"  ROC-AUC:           {roc:.4f}")
     print(f"  PR-AUC:            {pr_auc:.4f}")
@@ -102,19 +102,19 @@ def train_and_eval_baselines(random_state: int = 42):
     y_prob_lr = lr.predict_proba(X_test)[:, 1]
     results.append(evaluate_predictions(y_test, y_pred_lr, y_prob_lr, "Logistic Regression"))
 
-    # 2. Random Forest Baseline
+    # 2. Random Forest Baseline (Centralized Non-Linear Upper Bound)
     print("[*] Training Random Forest baseline (100 estimators)...")
     rf = RandomForestClassifier(n_estimators=100, max_depth=16, n_jobs=-1, random_state=random_state)
     rf.fit(X_train, y_train)
     y_pred_rf = rf.predict(X_test)
     y_prob_rf = rf.predict_proba(X_test)[:, 1]
-    results.append(evaluate_predictions(y_test, y_pred_rf, y_prob_rf, "Random Forest"))
+    results.append(evaluate_predictions(y_test, y_pred_rf, y_prob_rf, "Random Forest (Upper Bound)"))
 
-    # 3. Centralized PyTorch MLP Baseline
-    print("[*] Training Centralized PyTorch MLP baseline (15 epochs)...")
+    # 3. Centralized PyTorch MLP Baseline (Federated-Compatible Architecture)
+    print("[*] Training Centralized PyTorch MLP baseline with validation monitoring...")
     torch.manual_seed(random_state)
     input_dim = X_train.shape[1]
-    mlp = NetSentryClassifier(input_dim=input_dim)
+    mlp = NetSentryClassifier(input_dim=input_dim, hidden_dims=[128, 64, 32], dropout_rate=0.1)
     optimizer = torch.optim.AdamW(mlp.parameters(), lr=0.001, weight_decay=1e-4)
     
     pos_weight = torch.tensor([(len(y_train) - y_train.sum()) / (y_train.sum() + 1e-5)])
@@ -126,8 +126,11 @@ def train_and_eval_baselines(random_state: int = 42):
         shuffle=True
     )
     
-    mlp.train()
-    for epoch in range(1, 16):
+    best_val_f1 = 0.0
+    best_model_weights = None
+    
+    for epoch in range(1, 26):
+        mlp.train()
         total_loss = 0.0
         for bx, by in train_loader:
             optimizer.zero_grad()
@@ -137,13 +140,32 @@ def train_and_eval_baselines(random_state: int = 42):
             optimizer.step()
             total_loss += loss.item()
             
+        # Validation check
+        mlp.eval()
+        with torch.no_grad():
+            val_logits = mlp(torch.from_numpy(X_val))
+            val_probs = torch.sigmoid(val_logits).numpy()
+            val_preds = (val_probs >= 0.5).astype(int)
+            val_f1 = f1_score(y_val, val_preds, zero_division=0)
+            
+        if val_f1 > best_val_f1:
+            best_val_f1 = val_f1
+            best_model_weights = mlp.state_dict().copy()
+            
+        if epoch % 5 == 0 or epoch == 25:
+            print(f"    Epoch {epoch:2d}/25 - Loss: {total_loss/len(train_loader):.4f} - Val F1: {val_f1:.4f} (Best: {best_val_f1:.4f})")
+            
+    # Load best weights
+    if best_model_weights is not None:
+        mlp.load_state_dict(best_model_weights)
+        
     mlp.eval()
     with torch.no_grad():
-        mlp_logits = mlp(torch.from_numpy(X_test))
-        mlp_probs = torch.sigmoid(mlp_logits).numpy()
-        mlp_preds = (mlp_probs >= 0.5).astype(int)
+        test_logits = mlp(torch.from_numpy(X_test))
+        test_probs = torch.sigmoid(test_logits).numpy()
+        test_preds = (test_probs >= 0.5).astype(int)
         
-    results.append(evaluate_predictions(y_test, mlp_preds, mlp_probs, "Centralized PyTorch MLP"))
+    results.append(evaluate_predictions(y_test, test_preds, test_probs, "Centralized PyTorch MLP"))
     
     # Save results to CSV
     res_df = pd.DataFrame(results)
@@ -151,13 +173,8 @@ def train_and_eval_baselines(random_state: int = 42):
     res_df.to_csv(out_csv, index=False)
     print(f"[+] Saved genuine centralized baseline results to {out_csv}")
     
-    # Feature importances from Random Forest
-    importances = rf.feature_importances_
-    top_indices = np.argsort(importances)[::-1][:10]
-    print("\n[*] Top 10 Most Predictive Real Network Flow Features (Random Forest):")
-    for rank, idx in enumerate(top_indices, 1):
-        print(f"    {rank:2d}. {feature_names[idx]:<32} (Importance: {importances[idx]:.4f})")
-        
+    # Save model weights for centralized upper bound
+    torch.save(mlp.state_dict(), EXPERIMENTS_DIR / "centralized_model.pth")
     return results
 
 if __name__ == "__main__":

@@ -1,7 +1,7 @@
 """
 NetSentry-FL: Core Data Preprocessing and Ingestion Module
-Handles cleaning, missing/infinite value handling, normalization,
-and stratified dataset splitting for CIC-IDS2017 flow data.
+Handles cleaning, missing/infinite value handling, heavy-tail transformation,
+normalization, and stratified dataset splitting for CIC-IDS2017 flow data.
 """
 
 import os
@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from typing import Tuple, List, Dict, Any
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import RobustScaler
+from sklearn.preprocessing import QuantileTransformer, RobustScaler
 import joblib
 
 def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
@@ -73,10 +73,7 @@ def drop_constant_and_identifier_columns(df: pd.DataFrame) -> Tuple[pd.DataFrame
         if col not in ["Label", "Binary_Label", "Category"] and df[col].nunique() <= 1:
             cols_to_drop_set.add(col)
             
-    # Deterministic sort ensures identical order across executions and environments
     cols_to_drop = sorted(cols_to_drop_set)
-    
-    # Verify all target columns exist prior to drop (no silent errors='ignore')
     existing_cols_to_drop = [c for c in cols_to_drop if c in df.columns]
     df_cleaned = df.drop(columns=existing_cols_to_drop)
     
@@ -94,9 +91,8 @@ def split_and_scale_data(
 ) -> Dict[str, Any]:
     """
     Splits data into 70% Train, 10% Validation, and 20% Held-Out Test using Stratified sampling.
-    Applies RobustScaler fitted STRICTLY on training data to prevent data leakage.
-    Returns:
-        Dict containing scaled matrices, targets, scaler, and metadata dataframes.
+    Applies QuantileTransformer (Gaussian output mapped to [-5, 5]) fitted STRICTLY on training
+    data to handle extreme heavy-tailed network features and eliminate outlier gradient explosion.
     """
     stratify_target = df[stratify_col] if stratify_col in df.columns else df[target_col]
     
@@ -120,19 +116,20 @@ def split_and_scale_data(
     )
     
     # Extract feature arrays
-    X_train_raw = df_train[feature_cols].values.astype(np.float32)
-    X_val_raw = df_val[feature_cols].values.astype(np.float32)
-    X_test_raw = df_test[feature_cols].values.astype(np.float32)
+    X_train_raw = df_train[feature_cols].values.astype(np.float64)
+    X_val_raw = df_val[feature_cols].values.astype(np.float64)
+    X_test_raw = df_test[feature_cols].values.astype(np.float64)
     
     y_train = df_train[target_col].values.astype(np.float32)
     y_val = df_val[target_col].values.astype(np.float32)
     y_test = df_test[target_col].values.astype(np.float32)
     
-    # Step 3: Fit scaler strictly on training split
-    scaler = RobustScaler()
-    X_train_scaled = scaler.fit_transform(X_train_raw).astype(np.float32)
-    X_val_scaled = scaler.transform(X_val_raw).astype(np.float32)
-    X_test_scaled = scaler.transform(X_test_raw).astype(np.float32)
+    # Step 3: Fit QuantileTransformer strictly on training split
+    # Maps heavy-tailed distribution to standard normal N(0, 1) and clips to [-5, 5]
+    scaler = QuantileTransformer(output_distribution="normal", random_state=random_state, n_quantiles=min(1000, len(X_train_raw)))
+    X_train_scaled = np.clip(scaler.fit_transform(X_train_raw), -5.0, 5.0).astype(np.float32)
+    X_val_scaled = np.clip(scaler.transform(X_val_raw), -5.0, 5.0).astype(np.float32)
+    X_test_scaled = np.clip(scaler.transform(X_test_raw), -5.0, 5.0).astype(np.float32)
     
     return {
         "X_train": X_train_scaled,

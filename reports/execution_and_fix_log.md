@@ -1,5 +1,5 @@
 # NetSentry-FL: Comprehensive Engineering & Research Execution Log
-*A Complete Record of Foundations, Fixes, Experiments, and Verification for the Final Report*
+*A Complete Record of Foundations, Fixes, Experiments, and Verification for Month 5*
 
 ---
 
@@ -26,71 +26,73 @@
   - **Validation Partition (10%):** 3,646 flows (2,365 Benign, 1,281 Attacks)
   - **Held-Out Test Partition (20%):** 7,292 flows (4,729 Benign, 2,563 Attacks: 1,160 PortScan, 974 DoS, 429 Web Attacks)
 - **Zero Leakage Guarantee:**
-  - `RobustScaler` fitted **strictly on the 70% training partition (`X_train`)**, then applied to validation and test partitions without refitting.
+  - Scaler fitted **strictly on the 70% training partition (`X_train`)**, then applied to validation and test partitions without refitting.
   - Zero index or row overlap between train, val, and test splits (verified via automated unit test `tests/test_preprocessing.py`).
 
 ---
 
-## 2. Centralized Baseline Re-Evaluation
-The classical ML and centralized deep learning baselines were re-evaluated on the genuine 70/10/20 split (`experiments/centralized_baseline_results.csv`):
+## 2. Root Cause Analysis: Fixing the Weak Centralized MLP Baseline
 
-| Model | Accuracy | Precision | Recall | F1-Score | ROC-AUC | PR-AUC | False Alarm Rate (FPR) | Confusion Matrix [TN, FP, FN, TP] |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Logistic Regression** | 63.00% | 47.36% | 47.17% | 0.4726 | 0.7503 | 0.6533 | 28.42% | [3385, 1344], [1354, 1209] |
-| **Random Forest (100 Trees)** | 99.81% | 99.84% | 99.61% | 0.9973 | 1.0000 | 1.0000 | 0.08% | [4725, 4], [10, 2553] |
-| **Centralized PyTorch MLP** | 74.18% | 95.95% | 27.70% | 0.4299 | 0.7747 | 0.6920 | 0.63% | [4699, 30], [1853, 710] |
+### 2.1 The Problem
+In early Month 4 evaluation, Random Forest achieved an F1 of **0.9973**, while the Centralized PyTorch MLP achieved only **0.4299 F1** (recall: 27.70%). Because the MLP serves as the architectural foundation for federated training, this discrepancy undermined all federated comparisons.
 
-**Top 5 Most Predictive Network Features Identified by Random Forest:**
-1. `Fwd Packet Length Mean` (Importance: 0.0624)
-2. `Total Length of Fwd Packets` (Importance: 0.0533)
-3. `Avg Fwd Segment Size` (Importance: 0.0449)
-4. `Packet Length Std` (Importance: 0.0431)
-5. `Average Packet Size` (Importance: 0.0412)
+### 2.2 Root Cause Discovery
+Inspection of the scaled feature tensors revealed that raw network flow metrics in CIC-IDS2017 follow extreme heavy-tailed Pareto distributions (e.g., flow durations exceeding $10^8$ microseconds, packet byte rates exceeding $10^7$ bytes/sec). 
+`RobustScaler` (which scales by median and interquartile range) left outlier values exceeding $1.2 \times 10^8$. When fed into PyTorch `BatchNorm1d` and `Linear` layers, these extreme inputs generated colossal activations, causing saturated gradients and neuron death in the hidden layers.
+
+### 2.3 The Engineering Fix
+1. Replaced `RobustScaler` with `QuantileTransformer(output_distribution="normal", n_quantiles=1000)` fitted **strictly on `X_train`**.
+2. Mapped features to a Gaussian distribution and clipped scaled values strictly to $[-5.0, 5.0]$.
+3. Result: Centralized MLP skyrocketed from **0.4299 to 0.9873 F1** (Accuracy: 99.09%, Precision: 97.63%, Recall: 99.84%, FPR: 1.31%).
+
+### 2.4 Overfit Sanity Verification
+A 200-sample training subset was fitted with AdamW for 100 epochs. The MLP reached **100.00% accuracy** with loss 0.00091, proving the model architecture is free of gradient bugs or label misalignment.
 
 ---
 
-## 3. Rigorous 3-Seed Federated Learning Evaluation
-- **Random Seeds:** 42, 101, 777.
-- **Evaluation Set:** 7,292 held-out test flows.
-- **Federated Hyperparameters:** 15 communication rounds, 2 local epochs per round, AdamW ($\text{lr}=0.001$, weight decay=$10^{-4}$), batch size 64.
-- **Extreme Non-IID Partitions:**
-  - Client A (Organization A): Sees ONLY DoS attacks + 1/3 of Benign flows.
-  - Client B (Organization B): Sees ONLY PortScan attacks + 1/3 of Benign flows.
-  - Client C (Organization C): Sees ONLY Web Attacks + 1/3 of Benign flows.
+## 3. Privacy Evaluation: Centralized vs. Decentralized Feature Scaling
 
-### 3.1 The Definitive Benchmark Table (Mean $\pm$ Spread)
-`experiments/rigorous_comparison_table.csv`:
+To evaluate the privacy implications of fitting scalers on pooled data in cross-silo FL, we developed an empirical comparison harness (`src/federated/scaling_privacy_analysis.py`):
 
-| Setup | Precision | Recall | F1 | PR-AUC | False Positive Rate (FPR) |
+| Scaling Paradigm | Privacy Level | F1-Score | Precision | Recall | False Alarm Rate (FPR) |
+| :--- | :--- | :---: | :---: | :---: | :---: |
+| **Pooled QuantileTransformer** | Low (Assumes pooled training data) | **0.8498** | 99.12% | 74.37% | **0.36%** |
+| **Local QuantileTransformer** | High (Zero raw data or quantile pooling) | **0.7900** | 98.77% | 65.82% | **0.44%** |
+| **Fixed Parameterless Normalization** ($\log(1+x)$ + RFC bounds) | Complete (Zero fitting, 100% static) | **0.6963** | 98.78% | 53.77% | **0.36%** |
+
+**Conclusion:** Local quantile fitting without data exchange incurs only a ~6% F1 penalty from client feature misalignment while preserving high precision (98.77%) and low false alarms (0.44%).
+
+---
+
+## 4. Month 5 Core Federated Experiments: 3-Seed Evaluation
+
+Conducted across seeds 42, 101, and 777 on 7,292 held-out flows over 15 rounds:
+
+### 4.1 Comparison Table (Mean $\pm$ Standard Deviation)
+
+| Setup | Precision | Recall | F1-Score | PR-AUC | False Alarm Rate (FPR) |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| **Centralized (MLP)** | 0.9503 $\pm$ 0.0120 | 0.2743 $\pm$ 0.0047 | 0.4256 $\pm$ 0.0051 | 0.6842 $\pm$ 0.0112 | 0.0078 $\pm$ 0.0021 (0.78%) |
-| **Local-only (Client A - DoS)** | 0.9232 $\pm$ 0.0117 | 0.2775 $\pm$ 0.0018 | 0.4268 $\pm$ 0.0013 | 0.5529 $\pm$ 0.0024 | 0.0125 $\pm$ 0.0021 (1.25%) |
-| **Local-only (Client B - PortScan)** | 0.3187 $\pm$ 0.0001 | 0.7096 $\pm$ 0.0004 | 0.4398 $\pm$ 0.0002 | 0.6085 $\pm$ 0.0095 | **0.8222 $\pm$ 0.0000 (82.22%)** |
-| **Local-only (Client C - Web Attack)**| 0.3189 $\pm$ 0.0002 | 0.7096 $\pm$ 0.0004 | 0.4400 $\pm$ 0.0002 | 0.4416 $\pm$ 0.0070 | **0.8215 $\pm$ 0.0010 (82.15%)** |
-| **Federated, IID** | **0.9635 $\pm$ 0.0090** | 0.2731 $\pm$ 0.0048 | 0.4255 $\pm$ 0.0050 | 0.6848 $\pm$ 0.0037 | **0.0056 $\pm$ 0.0015 (0.56%)** |
-| **Federated, non-IID** | 0.6111 $\pm$ 0.4374 | 0.0009 $\pm$ 0.0008 | 0.0018 $\pm$ 0.0016 | 0.6609 $\pm$ 0.0848 | **0.0001 $\pm$ 0.0001 (0.01%)** |
+| **Centralized (MLP)** | 0.9812 $\pm$ 0.0020 | 0.9983 $\pm$ 0.0005 | **0.9897 $\pm$ 0.0008** | 0.9993 $\pm$ 0.0001 | 0.0104 $\pm$ 0.0011 (1.04%) |
+| **Local-only (Client A - DoS)** | 0.9527 $\pm$ 0.0155 | 0.3835 $\pm$ 0.0053 | 0.5468 $\pm$ 0.0029 | 0.7841 $\pm$ 0.0386 | 0.0104 $\pm$ 0.0036 (1.04%) |
+| **Local-only (Client B - PortScan)** | 0.9983 $\pm$ 0.0000 | 0.4521 $\pm$ 0.0002 | 0.6223 $\pm$ 0.0002 | 0.7786 $\pm$ 0.0060 | **0.0004 $\pm$ 0.0000 (0.04%)** |
+| **Local-only (Client C - Web Attack)** | 0.8732 $\pm$ 0.0489 | 0.1900 $\pm$ 0.0086 | 0.3116 $\pm$ 0.0083 | 0.5640 $\pm$ 0.0270 | 0.0156 $\pm$ 0.0078 (1.56%) |
+| **Federated, IID (FedAvg)** | 0.9702 $\pm$ 0.0013 | **0.9990 $\pm$ 0.0009** | **0.9844 $\pm$ 0.0009** | 0.9994 $\pm$ 0.0001 | 0.0166 $\pm$ 0.0007 (1.66%) |
+| **Federated, non-IID Silos (FedAvg)** | 0.9895 $\pm$ 0.0010 | 0.7390 $\pm$ 0.0804 | 0.8437 $\pm$ 0.0514 | 0.9911 $\pm$ 0.0026 | 0.0042 $\pm$ 0.0003 (0.42%) |
+| **Federated, non-IID Silos (FedProx $\mu=0.01$)** | 0.9897 $\pm$ 0.0028 | **0.8865 $\pm$ 0.0111** | **0.9352 $\pm$ 0.0059** | 0.9959 $\pm$ 0.0010 | 0.0050 $\pm$ 0.0014 (0.50%) |
+| **Federated, non-IID Silos (FedProx $\mu=0.1$)** | 0.9887 $\pm$ 0.0050 | 0.6845 $\pm$ 0.0320 | 0.8086 $\pm$ 0.0238 | 0.9916 $\pm$ 0.0011 | 0.0042 $\pm$ 0.0017 (0.42%) |
+| **Federated, non-IID Dir(0.5) (FedAvg)** | 0.9840 $\pm$ 0.0044 | 0.9662 $\pm$ 0.0398 | 0.9745 $\pm$ 0.0185 | 0.9973 $\pm$ 0.0023 | 0.0086 $\pm$ 0.0026 (0.86%) |
+| **Federated, non-IID Dir(0.1) (FedAvg)** | 0.9863 $\pm$ 0.0116 | 0.8597 $\pm$ 0.0954 | 0.9152 $\pm$ 0.0505 | 0.9888 $\pm$ 0.0020 | 0.0071 $\pm$ 0.0064 (0.71%) |
+| **Federated, non-IID Dir(0.1) (FedProx $\mu=0.01$)** | **0.9943 $\pm$ 0.0040** | 0.8559 $\pm$ 0.1003 | 0.9166 $\pm$ 0.0577 | 0.9894 $\pm$ 0.0056 | **0.0028 $\pm$ 0.0019 (0.28%)** |
+| **Federated, non-IID Dir(0.1) (FedProx $\mu=0.1$)** | 0.9831 $\pm$ 0.0093 | 0.8970 $\pm$ 0.0517 | **0.9370 $\pm$ 0.0233** | 0.9878 $\pm$ 0.0051 | 0.0087 $\pm$ 0.0054 (0.87%) |
 
-### 3.2 Critical Findings:
-1. **The 82% False Alarm Trap in Isolated Clients:** Clients B and C suffer an unviable **82.2% False Alarm Rate** because their local decision boundaries collapsed around their narrow local attack distributions.
-2. **Federated Regularization:** Federated IID FedAvg achieves **96.35% Precision** and slashes false alarms down to **0.56% FPR**, proving that federated aggregation acts as a robust natural regularizer against false alerts.
-3. **The Non-IID Drift Phenomenon:** Under extreme non-IID conditions, contradictory gradient updates across silos push decision biases negative, leading to very conservative decision boundaries under fixed 0.50 thresholding.
-
----
-
-## 4. Communication Cost Extension
-- **Model Size:** 19,649 parameters $\times$ 4 bytes = **76.75 KB** per update.
-- **Rounds Required to Reach Target F1 Thresholds (`experiments/rounds_to_target_f1.csv`):**
-  - **Federated IID:** Reached F1 $\ge 0.15$, $0.20$, and $0.30$ within **Round 1** (total cumulative bandwidth: 460.52 KB across all 3 clients).
-  - **Total 15-Round Overhead:** Cumulative network exchange across all 3 clients totaled **6.91 MB**, demonstrating extreme communication efficiency compared to transferring gigabytes of raw PCAP captures.
+### 4.2 Key Discoveries
+1. **Per-Attack Blindspot Proof:** Client B (trained on PortScan only) achieves **0.00% recall on DoS and Web Attacks**. Client A (DoS only) achieves **1.18% recall on PortScan**. The federated model catches all three families simultaneously.
+2. **FedProx Prevents Minority Class Erasure:** On Extreme Silos, FedAvg achieves only 35.82% recall on Web Attacks with huge instability ($\pm 0.4576$). FedProx ($\mu=0.01$) boosts Web Attack recall to **87.65% with stable $\pm 0.0207$ variance**, lifting overall Silo F1 by **+9.15%**.
+3. **Low False Alarms Across the Board:** All federated models maintain false alarm rates below 1.7%, reaching 0.28% on Dirichlet $\alpha=0.1$.
 
 ---
 
-## 5. Software Architecture & Verification
-- **Automated Unit Tests (`tests/`):**
-  - `tests/test_preprocessing.py`: Validates column cleaning, infinity handling, deduplication, deterministic drop, and zero index leakage in 70/10/20 splitting.
-  - `tests/test_partitioner.py`: Validates accurate distribution of attacks and benign samples to Client A, B, and C.
-  - All 6 tests passing (`OK`).
-- **Interactive Streamlit Demo (`app/app.py`):**
-  - Features strict column validation (halts with informative error if $>5$ features are missing instead of zero-filling).
-  - Multi-scenario selector with pre-packaged real flow CSVs.
-  - Interactive threshold tuning slider and export to CSV.
+## 5. Artifacts and Demonstration Status
+- **Interactive Streamlit Dashboard (`app/app.py`):** Fully operational, zero emojis, verified with strict schema alignment.
+- **Publication Charts (`reports/charts/`):** 5 high-resolution figures generated at 300 DPI.
+- **Git Synchronization:** All files committed and pushed to `https://github.com/Saifan-01/NetSentry-FL.git`.

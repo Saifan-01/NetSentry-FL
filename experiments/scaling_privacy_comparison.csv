@@ -1,0 +1,4 @@
+Paradigm,Privacy_Guarantee,F1,Recall,Precision,FPR
+Pooled QuantileTransformer (Simulation Baseline),Low (Requires pooled data or centralized quantiles),0.8497547926883638,0.7436597737026922,0.9911596463858554,0.003594840346796363
+Local QuantileTransformer (Strictly Decentralized),High (Zero raw data or quantile pooling),0.7899789276516038,0.6582130316035896,0.9877049180327869,0.00444068513427786
+Fixed Parameterless Normalization (log1p + Constant Bounds),"Complete (Zero data fitting, completely static)",0.696311268317332,0.537651190011705,0.9878136200716846,0.003594840346796363

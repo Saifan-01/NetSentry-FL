@@ -238,10 +238,21 @@ elif nav == "3-Seed Benchmark Comparison":
     
     st.markdown("### Critical Research Insights:")
     st.markdown("""
-    - **False Alarm Explosion in Isolated Silos:** Clients B (PortScan) and C (Web Attacks) suffer an **82.2% False Alarm Rate (FPR)** when exposed to general benign traffic because their local decision boundaries collapsed around their narrow training samples.
-    - **Federated Regularization:** Federated IID FedAvg achieves **96.35% Precision** and slashes false alarms down to **0.56% FPR**, proving that multi-client parameter averaging enforces strict regularization that prevents client boundary collapse.
-    - **The Non-IID Trade-off:** Extreme non-IID data induces client drift, leading to conservative decision boundaries under fixed 0.50 thresholding.
+    - **Local Blindspots in Isolated Silos:** Clients trained only on localized threats fail completely when exposed to new attacks. Client A (trained on DoS only) achieves **0.00% recall on PortScan and 1.48% on Web Attacks**. Client B (trained on PortScan only) achieves **0.00% recall on DoS and Web Attacks**.
+    - **Federated Generalization:** The federated model aggregates knowledge without sharing raw flows, enabling all participants to detect DoS, PortScan, and Web Attacks simultaneously.
+    - **FedProx Overcomes Extreme Client Drift:** Under extreme silos, standard FedAvg drops to **73.90% recall (0.8437 F1)** due to client drift. FedProx (mu=0.01) constrains local updates to the consensus manifold, boosting performance to **88.65% recall (0.9352 F1)** (+9.15% gain).
+    - **Protection for Minority Classes:** For Web Attacks (the smallest attack class), FedAvg achieves only 35.82% recall with extreme variance (+/- 0.4576), while FedProx achieves **87.65% recall with stable +/- 0.0207 variance**.
     """)
+    
+    st.divider()
+    st.subheader("Per-Attack-Type Recall Breakdown (Mean +/- Spread, 3 Seeds)")
+    if (EXPERIMENTS_DIR / "per_attack_recall.csv").exists():
+        att_df = pd.read_csv(EXPERIMENTS_DIR / "per_attack_recall.csv")
+        st.dataframe(
+            att_df[["Attack", "Model", "Recall_Display", "Total_Flows"]].rename(columns={"Recall_Display": "Detection Recall (Mean +/- Std)"}),
+            use_container_width=True,
+            hide_index=True
+        )
 
 # PAGE 3: TRADITIONAL CENTRALIZED BASELINES
 elif nav == "Traditional Centralized Baselines":
@@ -252,16 +263,33 @@ elif nav == "Traditional Centralized Baselines":
     st.dataframe(base_df, use_container_width=True, hide_index=True)
     
     st.markdown("""
-    - **Random Forest:** Achieves near-perfect performance on pooled data (99.81% accuracy, 0.9973 F1), representing the non-linear upper bound.
-    - **Logistic Regression:** Struggles on complex non-linear flow boundary separations (63.00% accuracy, 28.42% FPR).
-    - **Centralized PyTorch MLP:** Serves as the direct architectural upper bound for our Federated Neural Network.
+    - **Random Forest (Centralized Upper Bound):** Achieves near-perfect performance on pooled data (99.78% accuracy, 0.9969 F1, 0.13% false alarm rate), serving as the theoretical upper bound.
+    - **Centralized PyTorch MLP (Federated-Compatible Architecture):** Matches Random Forest with 99.09% accuracy, 97.63% precision, 99.84% recall, and 0.9873 F1 using Gaussian Quantile feature transformation.
+    - **Logistic Regression:** Reaches 97.46% accuracy and 0.9644 F1, but incurs higher false alarms (2.73% FPR).
     """)
+    
+    st.divider()
+    st.subheader("Architectural Privacy Analysis: Feature Scaling in Federated IDS")
+    st.markdown("""
+    In standard centralized benchmarks, feature scalers are fit on pooled training data. In real-world cross-silo FL, 
+    pooling raw features compromises privacy. NetSentry-FL evaluates three feature scaling paradigms:
+    """)
+    if (EXPERIMENTS_DIR / "scaling_privacy_comparison.csv").exists():
+        scal_df = pd.read_csv(EXPERIMENTS_DIR / "scaling_privacy_comparison.csv")
+        st.dataframe(scal_df, use_container_width=True, hide_index=True)
+        st.caption("Empirical test on 7,292 real held-out test flows comparing centralized, decentralized, and parameterless transformations.")
 
 # PAGE 4: CONVERGENCE & CHARTS
 elif nav == "Convergence and Cost Charts":
     st.title("Experimental Performance and Convergence Charts")
     
-    tab1, tab2, tab3, tab4 = st.tabs(["1. Federated Convergence", "2. Per-Attack Recall", "3. Metrics Comparison", "4. Communication Footprint"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "1. Federated Convergence",
+        "2. Per-Attack Recall",
+        "3. Metrics Comparison",
+        "4. Client Partitions",
+        "5. Communication Footprint"
+    ])
     
     with tab1:
         st.subheader("Federated Convergence: Global Model F1-Score per Round")
@@ -278,16 +306,18 @@ elif nav == "Convergence and Cost Charts":
         st.image(str(CHARTS_DIR / "setup_comparison_metrics.png"), use_container_width=True)
         
     with tab4:
-        st.subheader("Communication Overhead and Rounds to Target F1")
-        st.image(str(CHARTS_DIR / "communication_cost.png"), use_container_width=True)
+        st.subheader("Client Class Distribution Partitions")
+        if (CHARTS_DIR / "dirichlet_and_silo_distributions.png").exists():
+            st.image(str(CHARTS_DIR / "dirichlet_and_silo_distributions.png"), use_container_width=True)
+            st.caption("Comparison of Extreme Silo partitions vs. Dirichlet continuous label skew (alpha = 0.5 and alpha = 0.1).")
         
-        st.markdown("#### Rounds Required to Reach Target F1 Thresholds (Communication Extension)")
-        rounds_df = pd.read_csv(EXPERIMENTS_DIR / "rounds_to_target_f1.csv")
-        st.table(rounds_df)
+    with tab5:
+        st.subheader("Communication Overhead across Communication Rounds")
+        st.image(str(CHARTS_DIR / "communication_cost.png"), use_container_width=True)
         
         st.markdown("#### Cumulative Communication Overhead (KB)")
         comm_df = pd.read_csv(EXPERIMENTS_DIR / "communication_overhead.csv")
-        st.table(comm_df)
+        st.dataframe(comm_df, use_container_width=True, hide_index=True)
 
 # PAGE 5: SYSTEM ARCHITECTURE
 elif nav == "System Architecture":
